@@ -1,7 +1,7 @@
 package analisis;
 
-// importaciones necesarias
 import java_cup.runtime.Symbol;
+import analisis.ast.*;
 
 parser code
 {:
@@ -11,53 +11,170 @@ parser code
     }
 
     public void syntax_error(Symbol s) {
-        System.err.println("Error de sintaxis en la línea " + s.left + ", columna " + s.right);
+        System.err.println("Error de sintaxis en la linea " + s.left + ", columna " + s.right);
     }
 
     public void unrecovered_syntax_error(Symbol s) {
-        System.err.println("Error de sintaxis no recuperable en la línea " + s.left + ", columna " + s.right);
+        System.err.println("Error de sintaxis no recuperable en la linea " + s.left + ", columna " + s.right);
     }
 :}
 
 action code
 {:
-    String consola = "";
+    // TODO: agregar logica para reporte de errores
 :}
 
-terminal String CADENA, ENTERO, DECIMAL;
-terminal FINCADENA, IMPRIMIR;
-terminal MAS, MENOS, MULT, DIV, PAR1, PAR2, UMENOS;
-terminal IDENTIFICADOR;
+// ========== TERMINALES ==========
 
-nonterminal INICIO;
-nonterminal INSTRUCCIONES, INSTRUCCION;
-nonterminal Double EXPRESION;
+// Palabras reservadas
+terminal VAR, FUNC, MAIN, IF, ELSE, FOR, BREAK, CONTINUE;
+terminal TRUE, FALSE, NIL;
+terminal INT, FLOAT64, STRING, BOOL, RUNE;
+terminal PRINTLN;
+terminal FMT, STRCONV, REFLECT, TYPEOF, ATOI, PARSEFLOAT, STRINGFUNC;
 
+// Operadores aritmeticos
+terminal MAS, MENOS, MULT, DIV, MOD;
+terminal UMENOS;
+
+// Operadores asignacion
+terminal IGUAL, MASIGUAL, MENOSIGUAL, DOSPUNTOSIGUAL;
+
+// Operadores comparacion
+terminal IGUALIGUAL, DIFERENTE, MAYOR, MAYORIGUAL, MENOR, MENORIGUAL;
+
+// Operadores logicos
+terminal AND, OR, NOT;
+
+// Simbolos
+terminal PAR1, PAR2, LLAVE1, LLAVE2, PTOCOMA, PUNTO, COMA;
+
+// Literales e identificadores
+terminal String CADENA, ENTERO, DECIMAL, IDENTIFICADOR, CHAR, ERROR;
+
+// ========== NO TERMINALES ==========
+
+nonterminal Programa PROGRAMA;
+nonterminal NodoAST FUNCION_MAIN;
+nonterminal NodoAST BLOQUE;
+nonterminal ListaNodos INSTRUCCIONES;
+nonterminal NodoAST INSTRUCCION;
+nonterminal NodoAST DECLARACION_VAR;
+nonterminal NodoAST ASIGNACION;
+nonterminal NodoAST ASIGNACION_OP;
+nonterminal NodoAST SENTENCIA_IF;
+nonterminal NodoAST SENTENCIA_FOR;
+nonterminal NodoAST SENTENCIA_BREAK;
+nonterminal NodoAST SENTENCIA_CONTINUE;
+nonterminal NodoAST LLAMADA_FUNCION;
+nonterminal NodoAST EXPRESION;
+nonterminal String TIPO;
+
+// ========== PRECEDENCIA ==========
+
+precedence left OR;
+precedence left AND;
+precedence left IGUALIGUAL, DIFERENTE;
+precedence left MAYOR, MAYORIGUAL, MENOR, MENORIGUAL;
 precedence left MAS, MENOS;
-precedence left MULT, DIV;
-precedence right UMENOS;
+precedence left MULT, DIV, MOD;
+precedence right NOT, UMENOS;
 
-start with INICIO;
+start with PROGRAMA;
 
-// Gramatica
+// ========== GRAMATICA ==========
 
-INICIO ::= INSTRUCCIONES    {: RESULT=consola; :}
+PROGRAMA ::= FUNCION_MAIN
+;
+
+FUNCION_MAIN ::= FUNC MAIN PAR1 PAR2 BLOQUE
+;
+
+BLOQUE ::= LLAVE1 INSTRUCCIONES LLAVE2
 ;
 
 INSTRUCCIONES ::= INSTRUCCIONES INSTRUCCION
                 | INSTRUCCION
 ;
 
-INSTRUCCION ::= IMPRIMIR PAR1 EXPRESION:e PAR2 FINCADENA  {: consola+=e+"\n"; :}
-              | IMPRIMIR PAR1 CADENA:c PAR2 FINCADENA     {: consola+=c+"\n"; :}
+INSTRUCCION ::= DECLARACION_VAR
+              | ASIGNACION
+              | ASIGNACION_OP
+              | SENTENCIA_IF
+              | SENTENCIA_FOR
+              | SENTENCIA_BREAK
+              | SENTENCIA_CONTINUE
+              | LLAMADA_FUNCION
+              | BLOQUE
 ;
 
-EXPRESION ::= MENOS EXPRESION:a               {: RESULT = -a; :}%prec UMENOS
-            | EXPRESION:a MAS EXPRESION:b     {: RESULT = a + b; :}
-            | EXPRESION:a MENOS EXPRESION:b   {: RESULT = a - b; :}
-            | EXPRESION:a MULT EXPRESION:b    {: RESULT = a * b; :}
-            | EXPRESION:a DIV EXPRESION:b     {: RESULT = a / b; :}                  
-            | PAR1 EXPRESION:e PAR2           {: RESULT = e; :}
-            | ENTERO:e                        {: RESULT = new Double(e); :}
-            | DECIMAL:e                       {: RESULT = new Double(e); :}
+DECLARACION_VAR ::= VAR IDENTIFICADOR TIPO IGUAL EXPRESION
+                  | VAR IDENTIFICADOR TIPO
+                  | IDENTIFICADOR DOSPUNTOSIGUAL EXPRESION
+;
+
+ASIGNACION ::= IDENTIFICADOR IGUAL EXPRESION
+;
+
+ASIGNACION_OP ::= IDENTIFICADOR MASIGUAL EXPRESION
+                | IDENTIFICADOR MENOSIGUAL EXPRESION
+;
+
+SENTENCIA_IF ::= IF EXPRESION BLOQUE
+               | IF EXPRESION BLOQUE ELSE BLOQUE
+               | IF EXPRESION BLOQUE ELSE SENTENCIA_IF
+;
+
+SENTENCIA_FOR ::= FOR EXPRESION BLOQUE
+                | FOR INSTRUCCION EXPRESION PTOCOMA INSTRUCCION BLOQUE
+;
+
+SENTENCIA_BREAK ::= BREAK
+;
+
+SENTENCIA_CONTINUE ::= CONTINUE
+;
+
+LLAMADA_FUNCION ::= FMT PUNTO PRINTLN PAR1 LISTA_EXPRESIONES PAR2
+                  | STRCONV PUNTO ATOI PAR1 EXPRESION PAR2
+                  | STRCONV PUNTO PARSEFLOAT PAR1 EXPRESION PAR2
+                  | REFLECT PUNTO TYPEOF PAR1 EXPRESION PAR2 PUNTO STRINGFUNC PAR1 PAR2
+;
+
+LISTA_EXPRESIONES ::= LISTA_EXPRESIONES COMA EXPRESION
+                    | EXPRESION
+;
+
+TIPO ::= INT
+       | FLOAT64
+       | STRING
+       | BOOL
+       | RUNE
+;
+
+EXPRESION ::= EXPRESION OR EXPRESION
+            | EXPRESION AND EXPRESION
+            | EXPRESION IGUALIGUAL EXPRESION
+            | EXPRESION DIFERENTE EXPRESION
+            | EXPRESION MAYOR EXPRESION
+            | EXPRESION MAYORIGUAL EXPRESION
+            | EXPRESION MENOR EXPRESION
+            | EXPRESION MENORIGUAL EXPRESION
+            | EXPRESION MAS EXPRESION
+            | EXPRESION MENOS EXPRESION
+            | EXPRESION MULT EXPRESION
+            | EXPRESION DIV EXPRESION
+            | EXPRESION MOD EXPRESION
+            | MENOS EXPRESION %prec UMENOS
+            | NOT EXPRESION
+            | PAR1 EXPRESION PAR2
+            | ENTERO
+            | DECIMAL
+            | CADENA
+            | CHAR
+            | TRUE
+            | FALSE
+            | NIL
+            | IDENTIFICADOR
+            | LLAMADA_FUNCION
 ;
