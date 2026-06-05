@@ -4,6 +4,11 @@
 
 package usac.compi1;
 
+import analisis.Lexer;
+import analisis.parser;
+import java.io.BufferedReader;
+import java.io.StringReader;
+
 /**
  *
  * @author Anthony
@@ -11,6 +16,14 @@ package usac.compi1;
 public class Compilador {
 
     public static void main(String[] args) {
-        System.out.println("Hello World!");
+        try {
+            String texto = "imprimir(1+2+3);imprimir(-1+2*2+9/4);";
+            Lexer s = new Lexer(new BufferedReader(new StringReader(texto)));
+            parser p = new parser(s);
+            var resultado = p.parse().value;
+            System.out.println(resultado);
+        } catch (Exception e) {
+            System.out.println(e);
+        }
     }
 }
