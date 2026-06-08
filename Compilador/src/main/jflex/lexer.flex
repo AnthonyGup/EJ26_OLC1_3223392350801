@@ -101,8 +101,13 @@ SALTO = [\n]
 <YYINITIAL> [\']               { /* literal rune */ return new Symbol(sym.CHAR, yyline, yycolumn, yytext()); }
 
 <CADENA> {
-    [\"]                        { yybegin(YYINITIAL); return new Symbol(sym.CADENA, yyline, yycolumn, cadena); }
-    [^\"]                       { cadena += yytext(); }
+    \"                          { yybegin(YYINITIAL); return new Symbol(sym.CADENA, yyline, yycolumn, cadena); }
+    "\\\""                      { cadena += '"'; }
+    "\\\\"                      { cadena += '\\'; }
+    "\\n"                       { cadena += '\n'; }
+    "\\r"                       { cadena += '\r'; }
+    "\\t"                       { cadena += '\t'; }
+    .                           { cadena += yytext(); }
 }
 
 <COMENTARIO_BLOQUE> {
