@@ -41,6 +41,10 @@ public class TablaSimbolos {
         return ambitos.get(ambitos.size() - 1).containsKey(id);
     }
 
+    public int getNivelAmbito() {
+        return ambitos.size() - 1; // 0 = global
+    }
+
     public List<Simbolo> obtenerTodos() {
         List<Simbolo> todos = new ArrayList<>();
         for (Map<String, Simbolo> ambito : ambitos) {

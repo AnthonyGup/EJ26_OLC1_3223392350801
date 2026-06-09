@@ -8,53 +8,33 @@ import analisis.ast.exp.*;
 import analisis.ast.stm.*;
 
 parser code
-{:
-    Lexer l;
-    parser(Lexer l) {
-        this.l = l;
-    }
-
+{: 
     public void syntax_error(Symbol s) {
-        System.err.println("Error de sintaxis en la linea " + s.left + ", columna " + s.right);
+        System.err.println("Error de sintaxis en la linea " + s.left + ", columna " + s.right + ": " + s.value);
     }
 
     public void unrecovered_syntax_error(Symbol s) {
-        System.err.println("Error de sintaxis no recuperable en la linea " + s.left + ", columna " + s.right);
+        System.err.println("Error de sintaxis no recuperable en la linea " + s.left + ", columna " + s.right + ": " + s.value);
     }
 :}
 
 action code
 {:
-    // TODO: agregar logica para reporte de errores
 :}
 
 // ========== TERMINALES ==========
 
-// Palabras reservadas
+terminal String CADENA, ENTERO, DECIMAL, IDENTIFICADOR, CHAR, ERROR;
 terminal VAR, FUNC, MAIN, IF, ELSE, FOR, BREAK, CONTINUE;
 terminal TRUE, FALSE, NIL;
 terminal INT, FLOAT64, STRING, BOOL, RUNE;
-terminal PRINTLN;
-terminal FMT, STRCONV, REFLECT, TYPEOF, ATOI, PARSEFLOAT, STRINGFUNC;
-
-// Operadores aritmeticos
+terminal FMT, STRCONV, REFLECT, TYPEOF, ATOI, PARSEFLOAT, STRINGFUNC, PRINTLN;
 terminal MAS, MENOS, MULT, DIV, MOD;
-terminal UMENOS;
-
-// Operadores asignacion
 terminal IGUAL, MASIGUAL, MENOSIGUAL, DOSPUNTOSIGUAL;
-
-// Operadores comparacion
 terminal IGUALIGUAL, DIFERENTE, MAYOR, MAYORIGUAL, MENOR, MENORIGUAL;
-
-// Operadores logicos
 terminal AND, OR, NOT;
-
-// Simbolos
 terminal PAR1, PAR2, LLAVE1, LLAVE2, PTOCOMA, PUNTO, COMA;
-
-// Literales e identificadores
-terminal String CADENA, ENTERO, DECIMAL, IDENTIFICADOR, CHAR, ERROR;
+terminal UMENOS;
 
 // ========== NO TERMINALES ==========
 
@@ -73,6 +53,7 @@ nonterminal NodoAST SENTENCIA_CONTINUE;
 nonterminal NodoAST LLAMADA_FUNCION;
 nonterminal NodoAST EXPRESION;
 nonterminal String TIPO;
+nonterminal List LISTA_EXPRESIONES;
 
 // ========== PRECEDENCIA ==========
 
@@ -82,7 +63,8 @@ precedence left IGUALIGUAL, DIFERENTE;
 precedence left MAYOR, MAYORIGUAL, MENOR, MENORIGUAL;
 precedence left MAS, MENOS;
 precedence left MULT, DIV, MOD;
-precedence right NOT, UMENOS;
+precedence right NOT;
+precedence right UMENOS;
 
 start with PROGRAMA;
 
@@ -108,7 +90,6 @@ INSTRUCCION ::= DECLARACION_VAR
               | SENTENCIA_FOR
               | SENTENCIA_BREAK
               | SENTENCIA_CONTINUE
-              | LLAMADA_FUNCION
               | BLOQUE
 ;
 
@@ -171,7 +152,6 @@ EXPRESION ::= EXPRESION OR EXPRESION
             | EXPRESION MOD EXPRESION
             | MENOS EXPRESION %prec UMENOS
             | NOT EXPRESION
-            | PAR1 EXPRESION PAR2
             | ENTERO
             | DECIMAL
             | CADENA
@@ -180,5 +160,6 @@ EXPRESION ::= EXPRESION OR EXPRESION
             | FALSE
             | NIL
             | IDENTIFICADOR
+            | PAR1 EXPRESION PAR2
             | LLAMADA_FUNCION
 ;
