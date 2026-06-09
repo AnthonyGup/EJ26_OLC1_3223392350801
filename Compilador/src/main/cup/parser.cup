@@ -1,7 +1,11 @@
 package analisis;
 
 import java_cup.runtime.Symbol;
+import java.util.List;
+import java.util.ArrayList;
 import analisis.ast.*;
+import analisis.ast.exp.*;
+import analisis.ast.stm.*;
 
 parser code
 {:
@@ -57,7 +61,7 @@ terminal String CADENA, ENTERO, DECIMAL, IDENTIFICADOR, CHAR, ERROR;
 nonterminal Programa PROGRAMA;
 nonterminal NodoAST FUNCION_MAIN;
 nonterminal NodoAST BLOQUE;
-nonterminal ListaNodos INSTRUCCIONES;
+nonterminal List INSTRUCCIONES;
 nonterminal NodoAST INSTRUCCION;
 nonterminal NodoAST DECLARACION_VAR;
 nonterminal NodoAST ASIGNACION;

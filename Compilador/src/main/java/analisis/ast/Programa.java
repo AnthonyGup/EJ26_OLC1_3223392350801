@@ -1,27 +1,32 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package analisis.ast;
 
 import analisis.visitor.Visitor;
 
-/**
- *
- * @author Anthony
- */
-public class Programa extends NodoAST {
+public class Programa implements NodoAST {
+    private final FuncionMain main;
+    private final int linea;
+    private final int columna;
 
-    public FuncionMain main;
-    
     public Programa(FuncionMain main, int linea, int columna) {
-        super(linea, columna);
         this.main = main;
+        this.linea = linea;
+        this.columna = columna;
+    }
+
+    public static class Context {
+        public final FuncionMain main;
+        public final int linea;
+        public final int columna;
+
+        public Context(Programa node) {
+            this.main = node.main;
+            this.linea = node.linea;
+            this.columna = node.columna;
+        }
     }
 
     @Override
-    public void accept(Visitor v) {
-        v.visit(this);
+    public <T> T accept(Visitor<T> visitor) {
+        return visitor.visit(new Context(this));
     }
-    
 }

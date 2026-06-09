@@ -1,26 +1,22 @@
-package analisis.ast;
+package analisis.ast.stm;
 
+import analisis.ast.NodoAST;
 import analisis.visitor.Visitor;
-import java.util.List;
 
-public class Bloque implements NodoAST {
-    private final List<NodoAST> instrucciones;
+public class Continue implements NodoAST {
     private final int linea;
     private final int columna;
 
-    public Bloque(List<NodoAST> instrucciones, int linea, int columna) {
-        this.instrucciones = instrucciones;
+    public Continue(int linea, int columna) {
         this.linea = linea;
         this.columna = columna;
     }
 
     public static class Context {
-        public final List<NodoAST> instrucciones;
         public final int linea;
         public final int columna;
 
-        public Context(Bloque node) {
-            this.instrucciones = node.instrucciones;
+        public Context(Continue node) {
             this.linea = node.linea;
             this.columna = node.columna;
         }
