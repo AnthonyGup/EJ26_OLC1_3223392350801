@@ -27,17 +27,7 @@
 | Labels `SYMBOL:label` no funcionaban | **Sí funcionan** — el ejemplo oficial las usa. Ya compila OK. |
 | Reduce/Reduce entre LLAMADA_FUNCION | Resuelto con la gramática plana (una sola EXPRESION con `%prec`). |
 
-### ⛔ Pendiente
-
-| Área | Archivos | Prioridad |
-|------|----------|-----------|
-| **Lexer completo** | `lexer.flex` — agregar reglas léxicas (Fase A) | Alta |
-| **Parser con acciones** | `parser.cup` — agregar acciones semánticas (Fase C) | Alta |
-| **VisitorEjecucion** | `visitor/ejecucion/VisitorEjecucion.java` + sistema `Valor` | Media |
-| **Compilador.java** | Orquestar lexer + parser + visitors | Media |
-| **GUI** | `VentanaPrincipal.java` (multitab, consola, reportes) | Media |
-| **VisitorASTPrint** | `analisis/visitor/VisitorASTPrint.java` | Baja |
-| **Reportes** | `ErrorDTO.java`, `TokenDTO.java`, `ReporteService.java` | Baja |
+### ✅ Fase 1 Completada
 
 ---
 
@@ -250,23 +240,53 @@ precedence right UMENOS;
 - [x] Funciones embebidas: `fmt.Println`, `strconv.Atoi`, `strconv.ParseFloat`, `reflect.TypeOf().String()`
 - [x] Secuencias de escape
 - [x] Valores por defecto según tipo
-- [ ] Lexer completo (Fase A1→A8)
-- [ ] Parser con acciones (Fase C1→C11)
-- [ ] VisitorEjecucion (con sistema Valor)
-- [ ] VisitorASTPrint
-- [ ] GUI (VentanaPrincipal)
-- [ ] Compilador.java (orquestador)
-- [ ] Reporte de errores
-- [ ] Tabla de tokens
+- [x] Lexer completo (Fase A1→A8)
+- [x] Parser con acciones (Fase C1→C11)
+- [x] VisitorEjecucion (con sistema Valor)
+- [x] GUI (VentanaPrincipal + PanelEditor + PanelConsola)
+- [x] Compilador.java (entry point)
+- [x] Reporte de errores (dialog con JTable)
+- [x] Tabla de tokens (dialog con JTable)
 
-## Excluido de Fase 1 (va en Fase 2)
+---
+## Bitácora de correcciones
+
+### 10/06/2026 — Error `LLAMADA_FUNCION` no reconocida como instrucción
+
+**Síntoma:** `Error Sintactico: simbolo inesperado: fmt` + `ClassCastException: If → Programa`.
+
+**Causas:**
+1. `INSTRUCCION` no listaba `LLAMADA_FUNCION` — el parser rechazaba `fmt.Println(...)` como instrucción.
+2. `error PTOCOMA` buscaba `;` para recuperarse, pero GoLite no usa punto y coma.
+
+**Cambios en `parser.cup`:**
+| Línea | Antes | Después |
+|---|---|---|
+| 109 | (no existía) | `\| EXPRESION:e  {: RESULT = e; :}` |
+| 110 | `\| error PTOCOMA` | `\| error LLAVE2` |
+
+**Nota:** Se intentó primero `| LLAMADA_FUNCION:d {: RESULT = d; :}` pero causó reduce/reduce conflict con `EXPRESION ::= LLAMADA_FUNCION`. Se cambió a `| EXPRESION:e {: RESULT = e; :}` que es idiomático (Go permite expresiones como instrucciones).
+
+---
+
+### 10/06/2026 — Finalización de Fase 1
+
+**Cambios realizados:**
+1. **Fix `for` full form** en `parser.cup:142` — se agregó `PTOCOMA` faltante entre `INSTRUCCION:init` y `EXPRESION:cond`.
+2. **TokenInfo.java** — nueva clase en `usac.compi1.gui.reports` para almacenar lexema, tipo, línea, columna.
+3. **Lexer recolecta tokens** — cada regla en `lexer.flex` ahora invoca `token(sym, lexema, tipo, linea, columna)` que agrega un `TokenInfo` a `lexer.tokens`.
+4. **ReporteDialog.java** — JDialog genérico con JTable para mostrar reportes tabulares.
+5. **VentanaPrincipal** — `mostrarTokens()` abre el diálogo de tokens; `errores()` ahora abre un diálogo con JTable en vez de imprimir en consola.
+
+---
+
+## Excluido de Fase 1 → Fase 2
 
 - [ ] Switch-Case
-- [ ] For range
+- [ ] For range (slice)
 - [ ] Return
 - [ ] Slices
 - [ ] Structs
-- [ ] Funciones definidas por usuario
-- [ ] Parámetros
+- [ ] Funciones con parámetros
 - [ ] Reporte de tabla de símbolos
 - [ ] Reporte de AST

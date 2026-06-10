@@ -6,15 +6,18 @@ import java.util.ArrayList;
 import analisis.ast.*;
 import analisis.ast.exp.*;
 import analisis.ast.stm.*;
+import usac.compi1.gui.reports.GoliteError;
 
 parser code
 {: 
+    public List<GoliteError> errors = new ArrayList<>();
+
     public void syntax_error(Symbol s) {
-        System.err.println("Error de sintaxis en la linea " + s.left + ", columna " + s.right + ": " + s.value);
+        errors.add(new GoliteError("Sintactico", "simbolo inesperado: " + s.value, s.left, s.right));
     }
 
     public void unrecovered_syntax_error(Symbol s) {
-        System.err.println("Error de sintaxis no recuperable en la linea " + s.left + ", columna " + s.right + ": " + s.value);
+        errors.add(new GoliteError("Sintactico", "simbolo inesperado no recuperable: " + s.value, s.left, s.right));
     }
 :}
 
@@ -70,96 +73,175 @@ start with PROGRAMA;
 
 // ========== GRAMATICA ==========
 
-PROGRAMA ::= FUNCION_MAIN
+PROGRAMA ::= FUNCION_MAIN:fm
+             {: RESULT = new Programa((FuncionMain)fm, fmleft, fmright); :}
 ;
 
-FUNCION_MAIN ::= FUNC MAIN PAR1 PAR2 BLOQUE
+FUNCION_MAIN ::= FUNC MAIN PAR1 PAR2 BLOQUE:b
+                 {: RESULT = new FuncionMain((Bloque)b, bleft, bright); :}
 ;
 
-BLOQUE ::= LLAVE1 INSTRUCCIONES LLAVE2
+BLOQUE ::= LLAVE1:ll INSTRUCCIONES:list LLAVE2
+           {: RESULT = new Bloque((List<NodoAST>)list, llleft, llright); :}
 ;
 
-INSTRUCCIONES ::= INSTRUCCIONES INSTRUCCION
-                | INSTRUCCION
+INSTRUCCIONES ::= INSTRUCCIONES:list INSTRUCCION:stm
+                  {: 
+                    List<NodoAST> l = (List<NodoAST>)list;
+                    l.add(stm);
+                    RESULT = l;
+                  :}
+                | INSTRUCCION:stm
+                  {: 
+                    List<NodoAST> l = new ArrayList<>();
+                    l.add(stm);
+                    RESULT = l;
+                  :}
 ;
 
-INSTRUCCION ::= DECLARACION_VAR
-              | ASIGNACION
-              | ASIGNACION_OP
-              | SENTENCIA_IF
-              | SENTENCIA_FOR
-              | SENTENCIA_BREAK
-              | SENTENCIA_CONTINUE
-              | BLOQUE
+INSTRUCCION ::= DECLARACION_VAR:d  {: RESULT = d; :}
+              | ASIGNACION:d       {: RESULT = d; :}
+              | ASIGNACION_OP:d    {: RESULT = d; :}
+              | SENTENCIA_IF:d     {: RESULT = d; :}
+              | SENTENCIA_FOR:d    {: RESULT = d; :}
+              | SENTENCIA_BREAK:d  {: RESULT = d; :}
+              | SENTENCIA_CONTINUE:d {: RESULT = d; :}
+              | BLOQUE:d           {: RESULT = d; :}
+              | EXPRESION:e        {: RESULT = e; :}
+              | error LLAVE2       {: RESULT = null; :}
 ;
 
-DECLARACION_VAR ::= VAR IDENTIFICADOR TIPO IGUAL EXPRESION
-                  | VAR IDENTIFICADOR TIPO
-                  | IDENTIFICADOR DOSPUNTOSIGUAL EXPRESION
+DECLARACION_VAR ::= VAR IDENTIFICADOR:id TIPO:t IGUAL EXPRESION:e
+                    {: RESULT = new DeclaracionVar((String)id, (String)t, e, idleft, idright); :}
+                  | VAR IDENTIFICADOR:id TIPO:t
+                    {: RESULT = new DeclaracionVar((String)id, (String)t, idleft, idright); :}
+                  | IDENTIFICADOR:id DOSPUNTOSIGUAL EXPRESION:e
+                    {: RESULT = new DeclaracionVar((String)id, e, idleft, idright); :}
 ;
 
-ASIGNACION ::= IDENTIFICADOR IGUAL EXPRESION
+ASIGNACION ::= IDENTIFICADOR:id IGUAL EXPRESION:e
+               {: RESULT = new Asignacion((String)id, e, idleft, idright); :}
 ;
 
-ASIGNACION_OP ::= IDENTIFICADOR MASIGUAL EXPRESION
-                | IDENTIFICADOR MENOSIGUAL EXPRESION
+ASIGNACION_OP ::= IDENTIFICADOR:id MASIGUAL EXPRESION:e
+                  {: RESULT = new AsignacionOp((String)id, "+=", e, idleft, idright); :}
+                | IDENTIFICADOR:id MENOSIGUAL EXPRESION:e
+                  {: RESULT = new AsignacionOp((String)id, "-=", e, idleft, idright); :}
 ;
 
-SENTENCIA_IF ::= IF EXPRESION BLOQUE
-               | IF EXPRESION BLOQUE ELSE BLOQUE
-               | IF EXPRESION BLOQUE ELSE SENTENCIA_IF
+SENTENCIA_IF ::= IF EXPRESION:cond BLOQUE:b
+                 {: RESULT = new If(cond, (Bloque)b, null, condleft, condright); :}
+               | IF EXPRESION:cond BLOQUE:b ELSE BLOQUE:eb
+                 {: RESULT = new If(cond, (Bloque)b, eb, condleft, condright); :}
+               | IF EXPRESION:cond BLOQUE:b ELSE SENTENCIA_IF:ei
+                 {: RESULT = new If(cond, (Bloque)b, ei, condleft, condright); :}
 ;
 
-SENTENCIA_FOR ::= FOR EXPRESION BLOQUE
-                | FOR INSTRUCCION EXPRESION PTOCOMA INSTRUCCION BLOQUE
+SENTENCIA_FOR ::= FOR:fk EXPRESION:cond BLOQUE:b
+                  {: RESULT = new For(cond, (Bloque)b, fkleft, fkright); :}
+                | FOR:fk INSTRUCCION:init PTOCOMA EXPRESION:cond PTOCOMA INSTRUCCION:update BLOQUE:b
+                  {: RESULT = new For(init, cond, update, (Bloque)b, fkleft, fkright); :}
 ;
 
-SENTENCIA_BREAK ::= BREAK
+SENTENCIA_BREAK ::= BREAK:bk
+                    {: RESULT = new Break(bkleft, bkright); :}
 ;
 
-SENTENCIA_CONTINUE ::= CONTINUE
+SENTENCIA_CONTINUE ::= CONTINUE:ck
+                       {: RESULT = new Continue(ckleft, ckright); :}
 ;
 
-LLAMADA_FUNCION ::= FMT PUNTO PRINTLN PAR1 LISTA_EXPRESIONES PAR2
-                  | STRCONV PUNTO ATOI PAR1 EXPRESION PAR2
-                  | STRCONV PUNTO PARSEFLOAT PAR1 EXPRESION PAR2
-                  | REFLECT PUNTO TYPEOF PAR1 EXPRESION PAR2 PUNTO STRINGFUNC PAR1 PAR2
+LLAMADA_FUNCION ::= FMT:fk PUNTO PRINTLN PAR1 LISTA_EXPRESIONES:args PAR2
+                    {: RESULT = new LlamadaFuncion("fmt", "Println", (List<NodoAST>)args, fkleft, fkright); :}
+                  | STRCONV:sk PUNTO ATOI PAR1 EXPRESION:e PAR2
+                    {: 
+                      List<NodoAST> args = new ArrayList<>();
+                      args.add(e);
+                      RESULT = new LlamadaFuncion("strconv", "Atoi", args, skleft, skright);
+                    :}
+                  | STRCONV:sk PUNTO PARSEFLOAT PAR1 EXPRESION:e PAR2
+                    {: 
+                      List<NodoAST> args = new ArrayList<>();
+                      args.add(e);
+                      RESULT = new LlamadaFuncion("strconv", "ParseFloat", args, skleft, skright);
+                    :}
+                  | REFLECT:rk PUNTO TYPEOF PAR1 EXPRESION:e PAR2 PUNTO STRINGFUNC PAR1 PAR2
+                    {: 
+                      List<NodoAST> args = new ArrayList<>();
+                      args.add(e);
+                      RESULT = new LlamadaFuncion("reflect", "TypeOf", args, true, rkleft, rkright);
+                    :}
 ;
 
-LISTA_EXPRESIONES ::= LISTA_EXPRESIONES COMA EXPRESION
-                    | EXPRESION
+LISTA_EXPRESIONES ::= LISTA_EXPRESIONES:list COMA EXPRESION:e
+                      {: 
+                        List<NodoAST> l = (List<NodoAST>)list;
+                        l.add(e);
+                        RESULT = l;
+                      :}
+                    | EXPRESION:e
+                      {: 
+                        List<NodoAST> l = new ArrayList<>();
+                        l.add(e);
+                        RESULT = l;
+                      :}
 ;
 
-TIPO ::= INT
-       | FLOAT64
-       | STRING
-       | BOOL
-       | RUNE
+TIPO ::= INT     {: RESULT = "int"; :}
+       | FLOAT64 {: RESULT = "float64"; :}
+       | STRING  {: RESULT = "string"; :}
+       | BOOL    {: RESULT = "bool"; :}
+       | RUNE    {: RESULT = "rune"; :}
 ;
 
-EXPRESION ::= EXPRESION OR EXPRESION
-            | EXPRESION AND EXPRESION
-            | EXPRESION IGUALIGUAL EXPRESION
-            | EXPRESION DIFERENTE EXPRESION
-            | EXPRESION MAYOR EXPRESION
-            | EXPRESION MAYORIGUAL EXPRESION
-            | EXPRESION MENOR EXPRESION
-            | EXPRESION MENORIGUAL EXPRESION
-            | EXPRESION MAS EXPRESION
-            | EXPRESION MENOS EXPRESION
-            | EXPRESION MULT EXPRESION
-            | EXPRESION DIV EXPRESION
-            | EXPRESION MOD EXPRESION
-            | MENOS EXPRESION %prec UMENOS
-            | NOT EXPRESION
-            | ENTERO
-            | DECIMAL
-            | CADENA
-            | CHAR
-            | TRUE
-            | FALSE
-            | NIL
-            | IDENTIFICADOR
-            | PAR1 EXPRESION PAR2
-            | LLAMADA_FUNCION
+EXPRESION ::= EXPRESION:izq OR EXPRESION:der
+              {: RESULT = new ExpBinaria(izq, "||", der, izqleft, izqright); :}
+            | EXPRESION:izq AND EXPRESION:der
+              {: RESULT = new ExpBinaria(izq, "&&", der, izqleft, izqright); :}
+            | EXPRESION:izq IGUALIGUAL EXPRESION:der
+              {: RESULT = new ExpBinaria(izq, "==", der, izqleft, izqright); :}
+            | EXPRESION:izq DIFERENTE EXPRESION:der
+              {: RESULT = new ExpBinaria(izq, "!=", der, izqleft, izqright); :}
+            | EXPRESION:izq MAYOR EXPRESION:der
+              {: RESULT = new ExpBinaria(izq, ">", der, izqleft, izqright); :}
+            | EXPRESION:izq MAYORIGUAL EXPRESION:der
+              {: RESULT = new ExpBinaria(izq, ">=", der, izqleft, izqright); :}
+            | EXPRESION:izq MENOR EXPRESION:der
+              {: RESULT = new ExpBinaria(izq, "<", der, izqleft, izqright); :}
+            | EXPRESION:izq MENORIGUAL EXPRESION:der
+              {: RESULT = new ExpBinaria(izq, "<=", der, izqleft, izqright); :}
+            | EXPRESION:izq MAS EXPRESION:der
+              {: RESULT = new ExpBinaria(izq, "+", der, izqleft, izqright); :}
+            | EXPRESION:izq MENOS EXPRESION:der
+              {: RESULT = new ExpBinaria(izq, "-", der, izqleft, izqright); :}
+            | EXPRESION:izq MULT EXPRESION:der
+              {: RESULT = new ExpBinaria(izq, "*", der, izqleft, izqright); :}
+            | EXPRESION:izq DIV EXPRESION:der
+              {: RESULT = new ExpBinaria(izq, "/", der, izqleft, izqright); :}
+            | EXPRESION:izq MOD EXPRESION:der
+              {: RESULT = new ExpBinaria(izq, "%", der, izqleft, izqright); :}
+            | MENOS:e EXPRESION:expr
+              {: RESULT = new ExpUnaria("-", expr, eleft, eright); :} %prec UMENOS
+            | NOT:e EXPRESION:expr
+              {: RESULT = new ExpUnaria("!", expr, eleft, eright); :}
+            | ENTERO:e
+              {: RESULT = new Literal(e, "int", eleft, eright); :}
+            | DECIMAL:e
+              {: RESULT = new Literal(e, "float64", eleft, eright); :}
+            | CADENA:e
+              {: RESULT = new Literal(e, "string", eleft, eright); :}
+            | CHAR:e
+              {: RESULT = new Literal(e, "rune", eleft, eright); :}
+            | TRUE:t
+              {: RESULT = new Literal("true", "bool", tleft, tright); :}
+            | FALSE:t
+              {: RESULT = new Literal("false", "bool", tleft, tright); :}
+            | NIL:t
+              {: RESULT = new Literal(null, "nil", tleft, tright); :}
+            | IDENTIFICADOR:id
+              {: RESULT = new Identificador((String)id, idleft, idright); :}
+            | PAR1 EXPRESION:e PAR2
+              {: RESULT = e; :}
+            | LLAMADA_FUNCION:fn
+              {: RESULT = fn; :}
 ;

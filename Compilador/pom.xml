@@ -13,7 +13,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>21</maven.compiler.release>
-        <exec.mainClass>usac.compi1.Compilador</exec.mainClass>
+        <exec.mainClass>analisis.Compilador</exec.mainClass>
     </properties>
 
     <dependencies>
@@ -21,6 +21,11 @@
             <groupId>com.github.vbmacher</groupId>
             <artifactId>java-cup-runtime</artifactId>
             <version>11b-20160615-3</version>
+        </dependency>
+        <dependency>
+            <groupId>com.fifesoft</groupId>
+            <artifactId>rsyntaxtextarea</artifactId>
+            <version>3.3.4</version>
         </dependency>
     </dependencies>
 
@@ -88,7 +93,7 @@
                         <configuration>
                             <archive>
                                 <manifest>
-                                    <mainClass>usac.compi1.Compilador</mainClass>
+                                    <mainClass>analisis.Compilador</mainClass>
                                 </manifest>
                             </archive>
                             <descriptorRefs>
