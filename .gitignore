@@ -1,4 +1,4 @@
-# Maven build
+# Ignorar target
 /Compilador/target/
 *.jar
 *.war
