@@ -12,6 +12,7 @@ public interface Visitor<T> {
     T visit(AsignacionOp.Context ctx);
     T visit(If.Context ctx);
     T visit(For.Context ctx);
+    T visit(Switch.Context ctx);
     T visit(Break.Context ctx);
     T visit(Continue.Context ctx);
     T visit(LlamadaFuncion.Context ctx);

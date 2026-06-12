@@ -52,7 +52,8 @@ action code
 // ========== TERMINALES ==========
 
 terminal String CADENA, ENTERO, DECIMAL, IDENTIFICADOR, CHAR;
-terminal VAR, IF, ELSE, FOR, BREAK, CONTINUE;
+terminal VAR, FUNC, MAIN, IF, ELSE, FOR, BREAK, CONTINUE;
+terminal SWITCH, CASE, DEFAULT, DOSPUNTOS;
 terminal TRUE, FALSE, NIL;
 terminal INT, FLOAT64, STRING, BOOL, RUNE;
 terminal FMT, STRCONV, REFLECT, TYPEOF, ATOI, PARSEFLOAT, STRINGFUNC, PRINTLN;
@@ -74,12 +75,16 @@ nonterminal NodoAST ASIGNACION;
 nonterminal NodoAST ASIGNACION_OP;
 nonterminal NodoAST SENTENCIA_IF;
 nonterminal NodoAST SENTENCIA_FOR;
+nonterminal NodoAST SENTENCIA_SWITCH;
 nonterminal NodoAST SENTENCIA_BREAK;
 nonterminal NodoAST SENTENCIA_CONTINUE;
+nonterminal Object CASO_SWITCH;
+nonterminal NodoAST SWITCH_DEFAULT;
 nonterminal NodoAST LLAMADA_FUNCION;
 nonterminal NodoAST EXPRESION;
 nonterminal String TIPO;
 nonterminal List LISTA_EXPRESIONES;
+nonterminal List LISTA_CASOS_SWITCH;
 
 // ========== PRECEDENCIA ==========
 
@@ -96,7 +101,9 @@ start with PROGRAMA;
 
 // ========== GRAMATICA ==========
 
-PROGRAMA ::= INSTRUCCIONES:i
+PROGRAMA ::= FUNC:f MAIN PAR1 PAR2 LLAVE1 INSTRUCCIONES:i LLAVE2
+             {: RESULT = new Programa((List<NodoAST>)i, fleft, fright); :}
+           | INSTRUCCIONES:i
              {: RESULT = new Programa((List<NodoAST>)i, ileft, iright); :}
 ;
 
@@ -123,6 +130,7 @@ INSTRUCCION ::= DECLARACION_VAR:d  {: RESULT = d; :}
               | ASIGNACION_OP:d    {: RESULT = d; :}
               | SENTENCIA_IF:d     {: RESULT = d; :}
               | SENTENCIA_FOR:d    {: RESULT = d; :}
+              | SENTENCIA_SWITCH:d {: RESULT = d; :}
               | SENTENCIA_BREAK:d  {: RESULT = d; :}
               | SENTENCIA_CONTINUE:d {: RESULT = d; :}
               | BLOQUE:d           {: RESULT = d; :}
@@ -160,6 +168,38 @@ SENTENCIA_FOR ::= FOR:fk EXPRESION:cond BLOQUE:b
                   {: RESULT = new For(cond, (Bloque)b, fkleft, fkright); :}
                 | FOR:fk INSTRUCCION:init PTOCOMA EXPRESION:cond PTOCOMA INSTRUCCION:update BLOQUE:b
                   {: RESULT = new For(init, cond, update, (Bloque)b, fkleft, fkright); :}
+;
+
+SENTENCIA_SWITCH ::= SWITCH:sw EXPRESION:e LLAVE1 LISTA_CASOS_SWITCH:casos SWITCH_DEFAULT:def LLAVE2
+                     {: RESULT = new Switch(e, (List<Switch.Caso>)casos, (NodoAST)def, swleft, swright); :}
+                   | SWITCH:sw EXPRESION:e LLAVE1 LISTA_CASOS_SWITCH:casos LLAVE2
+                     {: RESULT = new Switch(e, (List<Switch.Caso>)casos, null, swleft, swright); :}
+                   | SWITCH:sw EXPRESION:e LLAVE1 SWITCH_DEFAULT:def LLAVE2
+                     {: RESULT = new Switch(e, new ArrayList<Switch.Caso>(), (NodoAST)def, swleft, swright); :}
+                   | SWITCH:sw EXPRESION:e LLAVE1 LLAVE2
+                     {: RESULT = new Switch(e, new ArrayList<Switch.Caso>(), null, swleft, swright); :}
+;
+
+LISTA_CASOS_SWITCH ::= LISTA_CASOS_SWITCH:lista CASO_SWITCH:caso
+                       {:
+                         List<Switch.Caso> l = (List<Switch.Caso>)lista;
+                         l.add((Switch.Caso)caso);
+                         RESULT = l;
+                       :}
+                     | CASO_SWITCH:caso
+                       {:
+                         List<Switch.Caso> l = new ArrayList<>();
+                         l.add((Switch.Caso)caso);
+                         RESULT = l;
+                       :}
+;
+
+CASO_SWITCH ::= CASE:ck LISTA_EXPRESIONES:vals DOSPUNTOS INSTRUCCION:i
+                {: RESULT = new Switch.Caso((List<NodoAST>)vals, i, ckleft, ckright); :}
+;
+
+SWITCH_DEFAULT ::= DEFAULT:dk DOSPUNTOS INSTRUCCION:i
+                   {: RESULT = i; :}
 ;
 
 SENTENCIA_BREAK ::= BREAK:bk

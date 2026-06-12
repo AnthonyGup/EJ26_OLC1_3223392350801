@@ -47,21 +47,23 @@ integer    = [0-9]+
 decimal    = [0-9]+"."[0-9]+
 whitespace = [\ \r\t\f]+
 newline    = [\n]
-escape_seq = \\ [\"\\nrt]
-normal_char = [^\"\\\n\r]
-str_content = ({normal_char}|{escape_seq})*
 
 %%
 
 <YYINITIAL> {whitespace}  { /* ignorar */ }
 <YYINITIAL> {newline}     { /* ignorar */ }
 
+<YYINITIAL> "func"        { return token(sym.FUNC, yytext(), "func", yyline, yycolumn); }
+<YYINITIAL> "main"        { return token(sym.MAIN, yytext(), "main", yyline, yycolumn); }
 <YYINITIAL> "var"         { return token(sym.VAR, yytext(), "var", yyline, yycolumn); }
 <YYINITIAL> "if"          { return token(sym.IF, yytext(), "if", yyline, yycolumn); }
 <YYINITIAL> "else"        { return token(sym.ELSE, yytext(), "else", yyline, yycolumn); }
 <YYINITIAL> "for"         { return token(sym.FOR, yytext(), "for", yyline, yycolumn); }
 <YYINITIAL> "break"       { return token(sym.BREAK, yytext(), "break", yyline, yycolumn); }
 <YYINITIAL> "continue"    { return token(sym.CONTINUE, yytext(), "continue", yyline, yycolumn); }
+<YYINITIAL> "switch"      { return token(sym.SWITCH, yytext(), "switch", yyline, yycolumn); }
+<YYINITIAL> "case"        { return token(sym.CASE, yytext(), "case", yyline, yycolumn); }
+<YYINITIAL> "default"     { return token(sym.DEFAULT, yytext(), "default", yyline, yycolumn); }
 <YYINITIAL> "int"         { return token(sym.INT, yytext(), "int", yyline, yycolumn); }
 <YYINITIAL> "float64"     { return token(sym.FLOAT64, yytext(), "float64", yyline, yycolumn); }
 <YYINITIAL> "string"      { return token(sym.STRING, yytext(), "string", yyline, yycolumn); }
@@ -109,6 +111,7 @@ str_content = ({normal_char}|{escape_seq})*
 <YYINITIAL> ";"           { return token(sym.PTOCOMA, yytext(), ";", yyline, yycolumn); }
 <YYINITIAL> "."           { return token(sym.PUNTO, yytext(), ".", yyline, yycolumn); }
 <YYINITIAL> ","           { return token(sym.COMA, yytext(), ",", yyline, yycolumn); }
+<YYINITIAL> ":"           { return token(sym.DOSPUNTOS, yytext(), ":", yyline, yycolumn); }
 
 <YYINITIAL> {decimal}     { return token(sym.DECIMAL, yytext(), "float64", yyline, yycolumn); }
 <YYINITIAL> {integer}     { return token(sym.ENTERO, yytext(), "int", yyline, yycolumn); }

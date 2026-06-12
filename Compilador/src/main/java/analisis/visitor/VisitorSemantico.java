@@ -13,6 +13,7 @@ import analisis.ast.stm.DeclaracionVar;
 import analisis.ast.stm.For;
 import analisis.ast.stm.If;
 import analisis.ast.stm.LlamadaFuncion;
+import analisis.ast.stm.Switch;
 import analisis.semantic.Simbolo;
 import analisis.semantic.TablaSimbolos;
 import analisis.semantic.TipoDato;
@@ -24,12 +25,14 @@ public class VisitorSemantico implements Visitor<Void> {
     private TablaSimbolos tabla;
     private List<String> errores;
     private boolean dentroDeFor;
+    private boolean dentroDeSwitch;
     private TipoDato tipoResultado; // Clave: guarda el tipo de la ultima expresion
 
     public VisitorSemantico() {
         this.tabla = new TablaSimbolos();
         this.errores = new ArrayList<>();
         this.dentroDeFor = false;
+        this.dentroDeSwitch = false;
     }
 
     public List<String> getErrores() {
@@ -66,9 +69,11 @@ public class VisitorSemantico implements Visitor<Void> {
 
     @Override
     public Void visit(Bloque.Context ctx) {
+        tabla.nuevoAmbito();
         for (NodoAST instr : ctx.instrucciones) {
             instr.accept(this);
         }
+        tabla.cerrarAmbito();
         return null;
     }
 
@@ -107,7 +112,8 @@ public class VisitorSemantico implements Visitor<Void> {
             }
         }
 
-        Simbolo s = new Simbolo(ctx.id, tipoDeclarado, valorInicial, ctx.linea, ctx.columna, "global");
+        String ambito = (tabla.getNivelAmbito() == 0) ? "global" : "local";
+        Simbolo s = new Simbolo(ctx.id, tipoDeclarado, valorInicial, ctx.linea, ctx.columna, ambito);
 
         tabla.insertar(s);
 
@@ -204,9 +210,37 @@ public class VisitorSemantico implements Visitor<Void> {
     }
 
     @Override
+    public Void visit(Switch.Context ctx) {
+        ctx.expresion.accept(this);
+        TipoDato tipoSwitch = this.tipoResultado;
+
+        boolean antesSwitch = dentroDeSwitch;
+        dentroDeSwitch = true;
+        try {
+            for (Switch.Caso caso : ctx.casos) {
+                for (NodoAST expresionCaso : caso.expresiones) {
+                    expresionCaso.accept(this);
+                    if (tipoSwitch != null && this.tipoResultado != null && !sonCompatibles(tipoSwitch, this.tipoResultado)) {
+                        error(caso.linea, "La expresion del case debe ser compatible con el tipo del switch: " + tipoSwitch + " vs " + this.tipoResultado);
+                    }
+                }
+                caso.bloque.accept(this);
+            }
+
+            if (ctx.bloqueDefault != null) {
+                ctx.bloqueDefault.accept(this);
+            }
+        } finally {
+            dentroDeSwitch = antesSwitch;
+        }
+
+        return null;
+    }
+
+    @Override
     public Void visit(Break.Context ctx) {
-        if (!dentroDeFor) {
-            error(ctx.linea, "Sentencia break fuera de un ciclo for");
+        if (!dentroDeFor && !dentroDeSwitch) {
+            error(ctx.linea, "Sentencia break fuera de un ciclo for o switch");
         }
         return null;
     }

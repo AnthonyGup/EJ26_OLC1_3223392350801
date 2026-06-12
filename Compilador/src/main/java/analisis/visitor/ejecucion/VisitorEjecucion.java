@@ -28,9 +28,11 @@ public class VisitorEjecucion implements Visitor<Valor> {
 
     @Override
     public Valor visit(Bloque.Context ctx) {
+        gestor.entrarBloque();
         for (NodoAST instr : ctx.instrucciones) {
             instr.accept(this);
         }
+        gestor.salirBloque();
         return defaultVoid;
     }
 
@@ -111,6 +113,40 @@ public class VisitorEjecucion implements Visitor<Valor> {
                 }
             }
         } catch (BreakException e) {
+        }
+
+        return defaultVoid;
+    }
+
+    @Override
+    public Valor visit(Switch.Context ctx) {
+        Valor valorSwitch = ctx.expresion.accept(this);
+
+        for (Switch.Caso caso : ctx.casos) {
+            boolean coincide = false;
+            for (NodoAST expresionCaso : caso.expresiones) {
+                Valor valorCaso = expresionCaso.accept(this);
+                Valor comparacion = Operaciones.comparar(valorSwitch, valorCaso, caso.linea);
+                if (comparacion instanceof ValorBool b && b.valor()) {
+                    coincide = true;
+                    break;
+                }
+            }
+
+            if (coincide) {
+                try {
+                    caso.bloque.accept(this);
+                } catch (BreakException e) {
+                }
+                return defaultVoid;
+            }
+        }
+
+        if (ctx.bloqueDefault != null) {
+            try {
+                ctx.bloqueDefault.accept(this);
+            } catch (BreakException e) {
+            }
         }
 
         return defaultVoid;
