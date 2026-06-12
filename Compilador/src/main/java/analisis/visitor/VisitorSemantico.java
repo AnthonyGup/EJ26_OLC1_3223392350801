@@ -58,23 +58,17 @@ public class VisitorSemantico implements Visitor<Void> {
 
     @Override
     public Void visit(Programa.Context ctx) {
-        ctx.main.accept(this);
-        return null;
-    }
-
-    @Override
-    public Void visit(FuncionMain.Context ctx) {
-        ctx.bloque.accept(this);
+        for (NodoAST instr : ctx.instrucciones) {
+            instr.accept(this);
+        }
         return null;
     }
 
     @Override
     public Void visit(Bloque.Context ctx) {
-        tabla.nuevoAmbito();
         for (NodoAST instr : ctx.instrucciones) {
             instr.accept(this);
         }
-        tabla.cerrarAmbito();
         return null;
     }
 
@@ -113,9 +107,7 @@ public class VisitorSemantico implements Visitor<Void> {
             }
         }
 
-        // Se inserta en   la tabla
-        String ambito = (tabla.getNivelAmbito() == 0) ? "global" : "local";
-        Simbolo s = new Simbolo(ctx.id, tipoDeclarado, valorInicial, ctx.linea, ctx.columna, ambito);
+        Simbolo s = new Simbolo(ctx.id, tipoDeclarado, valorInicial, ctx.linea, ctx.columna, "global");
 
         tabla.insertar(s);
 

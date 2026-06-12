@@ -20,29 +20,23 @@ public class VisitorEjecucion implements Visitor<Valor> {
 
     @Override
     public Valor visit(Programa.Context ctx) {
-        ctx.main.accept(this);
-        return defaultVoid;
-    }
-
-    @Override
-    public Valor visit(FuncionMain.Context ctx) {
-        ctx.bloque.accept(this);
+        for (NodoAST instr : ctx.instrucciones) {
+            instr.accept(this);
+        }
         return defaultVoid;
     }
 
     @Override
     public Valor visit(Bloque.Context ctx) {
-        gestor.entrarBloque();
         for (NodoAST instr : ctx.instrucciones) {
             instr.accept(this);
         }
-        gestor.salirBloque();
         return defaultVoid;
     }
 
     @Override
     public Valor visit(DeclaracionVar.Context ctx) {
-        if (gestor.existeEnAlgunAmbito(ctx.id)) {
+        if (gestor.existeEnAmbitoActual(ctx.id)) {
             throw new RuntimeException("Linea " + ctx.linea + ": variable '" + ctx.id + "' ya declarada en este ambito");
         }
 

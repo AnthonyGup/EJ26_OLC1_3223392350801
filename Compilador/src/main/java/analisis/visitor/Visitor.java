@@ -6,7 +6,6 @@ import analisis.ast.stm.*;
 
 public interface Visitor<T> {
     T visit(Programa.Context ctx);
-    T visit(FuncionMain.Context ctx);
     T visit(Bloque.Context ctx);
     T visit(DeclaracionVar.Context ctx);
     T visit(Asignacion.Context ctx);

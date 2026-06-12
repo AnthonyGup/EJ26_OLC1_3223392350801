@@ -62,7 +62,7 @@ public class VentanaPrincipal extends JFrame {
 
         JMenu archivo = new JMenu("Archivo");
         JMenuItem nuevo = new JMenuItem("Nuevo");
-        nuevo.addActionListener(e -> editor.establecerTexto("func main() {\n    \n}"));
+        nuevo.addActionListener(e -> editor.establecerTexto(""));
         JMenuItem salir = new JMenuItem("Salir");
         salir.addActionListener(e -> System.exit(0));
         archivo.add(nuevo);
@@ -135,6 +135,12 @@ public class VentanaPrincipal extends JFrame {
             VisitorSemantico semantico = new VisitorSemantico();
             programa.accept(semantico);
 
+            if (!semantico.getErrores().isEmpty()) {
+                consola.limpiar();
+                consola.append("Errores semanticos encontrados. Revisa el Reporte de errores.\n");
+                return;
+            }
+
             VisitorEjecucion ejecucion = new VisitorEjecucion();
             programa.accept(ejecucion);
 
@@ -145,10 +151,20 @@ public class VentanaPrincipal extends JFrame {
         } catch (Exception e) {
             consola.limpiar();
             String msg = e.getMessage();
+
             if (msg == null || msg.isBlank()) {
-                msg = e.getClass().getSimpleName();
+                msg = "Error interno: " + e.getClass().getSimpleName();
+            } else if (msg.contains("Couldn't repair")) {
+                msg = "Error de sintaxis: no se pudo recuperar el analisis";
+            } else if (msg.contains("/ by zero") || msg.contains("Divide by zero")) {
+                msg = "Error: division por cero";
             }
-            consola.append("Error: " + msg + "\n");
+
+            if (parser != null && !parser.errors.isEmpty()) {
+                consola.append("Errores sintacticos encontrados. Revisa el Reporte de errores.\n");
+            } else {
+                consola.append("Error: " + msg + "\n");
+            }
         }
     }
 

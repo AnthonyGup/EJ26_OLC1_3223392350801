@@ -28,7 +28,7 @@ action code
 // ========== TERMINALES ==========
 
 terminal String CADENA, ENTERO, DECIMAL, IDENTIFICADOR, CHAR, ERROR;
-terminal VAR, FUNC, MAIN, IF, ELSE, FOR, BREAK, CONTINUE;
+terminal VAR, IF, ELSE, FOR, BREAK, CONTINUE;
 terminal TRUE, FALSE, NIL;
 terminal INT, FLOAT64, STRING, BOOL, RUNE;
 terminal FMT, STRCONV, REFLECT, TYPEOF, ATOI, PARSEFLOAT, STRINGFUNC, PRINTLN;
@@ -42,7 +42,6 @@ terminal UMENOS;
 // ========== NO TERMINALES ==========
 
 nonterminal Programa PROGRAMA;
-nonterminal NodoAST FUNCION_MAIN;
 nonterminal NodoAST BLOQUE;
 nonterminal List INSTRUCCIONES;
 nonterminal NodoAST INSTRUCCION;
@@ -73,12 +72,8 @@ start with PROGRAMA;
 
 // ========== GRAMATICA ==========
 
-PROGRAMA ::= FUNCION_MAIN:fm
-             {: RESULT = new Programa((FuncionMain)fm, fmleft, fmright); :}
-;
-
-FUNCION_MAIN ::= FUNC MAIN PAR1 PAR2 BLOQUE:b
-                 {: RESULT = new FuncionMain((Bloque)b, bleft, bright); :}
+PROGRAMA ::= INSTRUCCIONES:i
+             {: RESULT = new Programa((List<NodoAST>)i, ileft, iright); :}
 ;
 
 BLOQUE ::= LLAVE1:ll INSTRUCCIONES:list LLAVE2

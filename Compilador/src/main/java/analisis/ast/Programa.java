@@ -1,25 +1,26 @@
 package analisis.ast;
 
 import analisis.visitor.Visitor;
+import java.util.List;
 
 public class Programa implements NodoAST {
-    private final FuncionMain main;
+    private final List<NodoAST> instrucciones;
     private final int linea;
     private final int columna;
 
-    public Programa(FuncionMain main, int linea, int columna) {
-        this.main = main;
+    public Programa(List<NodoAST> instrucciones, int linea, int columna) {
+        this.instrucciones = instrucciones;
         this.linea = linea;
         this.columna = columna;
     }
 
     public static class Context {
-        public final FuncionMain main;
+        public final List<NodoAST> instrucciones;
         public final int linea;
         public final int columna;
 
         public Context(Programa node) {
-            this.main = node.main;
+            this.instrucciones = node.instrucciones;
             this.linea = node.linea;
             this.columna = node.columna;
         }
