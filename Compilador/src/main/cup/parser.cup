@@ -13,11 +13,35 @@ parser code
     public List<GoliteError> errors = new ArrayList<>();
 
     public void syntax_error(Symbol s) {
-        errors.add(new GoliteError("Sintactico", "simbolo inesperado: " + s.value, s.left, s.right));
+        String esperados = "";
+        try {
+            List<Integer> ids = expected_token_ids();
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < ids.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(sym.terminalNames[ids.get(i)]);
+            }
+            esperados = sb.toString();
+        } catch (Exception e) {
+            esperados = "<desconocido>";
+        }
+        errors.add(new GoliteError("Sintactico", "Se esperaba: " + esperados + " pero se encontro: " + s.value, s.left, s.right));
     }
 
     public void unrecovered_syntax_error(Symbol s) {
-        errors.add(new GoliteError("Sintactico", "simbolo inesperado no recuperable: " + s.value, s.left, s.right));
+        String esperados = "";
+        try {
+            List<Integer> ids = expected_token_ids();
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < ids.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(sym.terminalNames[ids.get(i)]);
+            }
+            esperados = sb.toString();
+        } catch (Exception e) {
+            esperados = "<desconocido>";
+        }
+        errors.add(new GoliteError("Sintactico", "Error no recuperable. Se esperaba: " + esperados + " pero se encontro: " + s.value, s.left, s.right));
     }
 :}
 
@@ -27,7 +51,7 @@ action code
 
 // ========== TERMINALES ==========
 
-terminal String CADENA, ENTERO, DECIMAL, IDENTIFICADOR, CHAR, ERROR;
+terminal String CADENA, ENTERO, DECIMAL, IDENTIFICADOR, CHAR;
 terminal VAR, IF, ELSE, FOR, BREAK, CONTINUE;
 terminal TRUE, FALSE, NIL;
 terminal INT, FLOAT64, STRING, BOOL, RUNE;
@@ -103,7 +127,7 @@ INSTRUCCION ::= DECLARACION_VAR:d  {: RESULT = d; :}
               | SENTENCIA_CONTINUE:d {: RESULT = d; :}
               | BLOQUE:d           {: RESULT = d; :}
               | EXPRESION:e        {: RESULT = e; :}
-              | error LLAVE2       {: RESULT = null; :}
+              | error PTOCOMA      {: RESULT = null; :}
 ;
 
 DECLARACION_VAR ::= VAR IDENTIFICADOR:id TIPO:t IGUAL EXPRESION:e

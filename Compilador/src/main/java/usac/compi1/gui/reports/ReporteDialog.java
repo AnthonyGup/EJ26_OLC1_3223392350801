@@ -9,6 +9,7 @@ public class ReporteDialog extends JDialog {
 
     public ReporteDialog(JFrame parent, String titulo, String[] columnas, List<String[]> filas) {
         super(parent, titulo, true);
+        this.setResizable(true);
         setSize(800, 400);
         setLocationRelativeTo(parent);
 
@@ -29,6 +30,16 @@ public class ReporteDialog extends JDialog {
         tabla.setRowHeight(22);
         tabla.setFillsViewportHeight(true);
         tabla.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+
+        for (int c = 0; c < tabla.getColumnCount(); c++) {
+            String nombre = columnas[c];
+            var col = tabla.getColumnModel().getColumn(c);
+            switch (nombre) {
+                case "No." -> { col.setPreferredWidth(35); col.setMaxWidth(45); }
+                case "Linea", "Columna" -> { col.setPreferredWidth(55); col.setMaxWidth(70); }
+                case "Tipo" -> { col.setPreferredWidth(75); col.setMaxWidth(90); }
+            }
+        }
 
         JScrollPane scroll = new JScrollPane(tabla);
         scroll.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));

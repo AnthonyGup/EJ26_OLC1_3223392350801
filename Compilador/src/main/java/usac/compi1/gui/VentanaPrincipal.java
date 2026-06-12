@@ -137,7 +137,9 @@ public class VentanaPrincipal extends JFrame {
 
             if (!semantico.getErrores().isEmpty()) {
                 consola.limpiar();
-                consola.append("Errores semanticos encontrados. Revisa el Reporte de errores.\n");
+                for (String err : semantico.getErrores()) {
+                    consola.append(err + "\n");
+                }
                 return;
             }
 
@@ -192,20 +194,17 @@ public class VentanaPrincipal extends JFrame {
         }
 
         List<String[]> filas = new ArrayList<>();
-        int i = 1;
 
         for (GoliteError e : lexer.errores) {
-            filas.add(new String[]{String.valueOf(i), e.getDescripcion(),
+            filas.add(new String[]{e.getDescripcion(),
                     String.valueOf(e.getLinea()), String.valueOf(e.getColumna()), e.getTipo()});
-            i++;
         }
         for (GoliteError e : parser.errors) {
-            filas.add(new String[]{String.valueOf(i), e.getDescripcion(),
+            filas.add(new String[]{e.getDescripcion(),
                     String.valueOf(e.getLinea()), String.valueOf(e.getColumna()), e.getTipo()});
-            i++;
         }
 
-        String[] cols = {"No.", "Descripcion", "Linea", "Columna", "Tipo"};
+        String[] cols = {"Descripcion", "Linea", "Columna", "Tipo"};
         new ReporteDialog(this, "Reporte de errores", cols, filas);
     }
 }
