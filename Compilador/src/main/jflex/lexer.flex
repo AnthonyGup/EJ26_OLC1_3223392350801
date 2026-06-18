@@ -34,7 +34,6 @@ import java.util.ArrayList;
 %public
 %line
 %column
-%full
 %state CADENA
 %state COMENTARIO_LINEA
 %state COMENTARIO_BLOQUE
@@ -79,7 +78,6 @@ newline    = [\n]
 <YYINITIAL> "TypeOf"      { return token(sym.TYPEOF, yytext(), "TypeOf", yyline, yycolumn); }
 <YYINITIAL> "Atoi"        { return token(sym.ATOI, yytext(), "Atoi", yyline, yycolumn); }
 <YYINITIAL> "ParseFloat"  { return token(sym.PARSEFLOAT, yytext(), "ParseFloat", yyline, yycolumn); }
-<YYINITIAL> "String"      { return token(sym.STRINGFUNC, yytext(), "String", yyline, yycolumn); }
 
 <YYINITIAL> "=="          { return token(sym.IGUALIGUAL, yytext(), "==", yyline, yycolumn); }
 <YYINITIAL> "!="          { return token(sym.DIFERENTE, yytext(), "!=", yyline, yycolumn); }
@@ -92,6 +90,8 @@ newline    = [\n]
 <YYINITIAL> "||"          { return token(sym.OR, yytext(), "||", yyline, yycolumn); }
 <YYINITIAL> ">"           { return token(sym.MAYOR, yytext(), ">", yyline, yycolumn); }
 <YYINITIAL> "<"           { return token(sym.MENOR, yytext(), "<", yyline, yycolumn); }
+<YYINITIAL> "++"          { return token(sym.MASMAS, yytext(), "++", yyline, yycolumn); }
+<YYINITIAL> "--"          { return token(sym.MENOSMENOS, yytext(), "--", yyline, yycolumn); }
 <YYINITIAL> "+"           { return token(sym.MAS, yytext(), "+", yyline, yycolumn); }
 <YYINITIAL> "-"           { return token(sym.MENOS, yytext(), "-", yyline, yycolumn); }
 <YYINITIAL> "*"           { return token(sym.MULT, yytext(), "*", yyline, yycolumn); }

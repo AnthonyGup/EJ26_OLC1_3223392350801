@@ -56,8 +56,8 @@ terminal VAR, FUNC, MAIN, IF, ELSE, FOR, BREAK, CONTINUE;
 terminal SWITCH, CASE, DEFAULT, DOSPUNTOS;
 terminal TRUE, FALSE, NIL;
 terminal INT, FLOAT64, STRING, BOOL, RUNE;
-terminal FMT, STRCONV, REFLECT, TYPEOF, ATOI, PARSEFLOAT, STRINGFUNC, PRINTLN;
-terminal MAS, MENOS, MULT, DIV, MOD;
+terminal FMT, STRCONV, REFLECT, TYPEOF, ATOI, PARSEFLOAT, PRINTLN;
+terminal MAS, MENOS, MULT, DIV, MOD, MASMAS, MENOSMENOS;
 terminal IGUAL, MASIGUAL, MENOSIGUAL, DOSPUNTOSIGUAL;
 terminal IGUALIGUAL, DIFERENTE, MAYOR, MAYORIGUAL, MENOR, MENORIGUAL;
 terminal AND, OR, NOT;
@@ -128,6 +128,16 @@ INSTRUCCIONES ::= INSTRUCCIONES:list INSTRUCCION:stm
 INSTRUCCION ::= DECLARACION_VAR:d  {: RESULT = d; :}
               | ASIGNACION:d       {: RESULT = d; :}
               | ASIGNACION_OP:d    {: RESULT = d; :}
+              | IDENTIFICADOR:id MASMAS
+                {: 
+                  NodoAST uno = new Literal("1", "int", idleft, idright);
+                  RESULT = new AsignacionOp((String)id, "+=", uno, idleft, idright);
+                :}
+              | IDENTIFICADOR:id MENOSMENOS
+                {: 
+                  NodoAST uno = new Literal("1", "int", idleft, idright);
+                  RESULT = new AsignacionOp((String)id, "-=", uno, idleft, idright);
+                :}
               | SENTENCIA_IF:d     {: RESULT = d; :}
               | SENTENCIA_FOR:d    {: RESULT = d; :}
               | SENTENCIA_SWITCH:d {: RESULT = d; :}
@@ -212,6 +222,8 @@ SENTENCIA_CONTINUE ::= CONTINUE:ck
 
 LLAMADA_FUNCION ::= FMT:fk PUNTO PRINTLN PAR1 LISTA_EXPRESIONES:args PAR2
                     {: RESULT = new LlamadaFuncion("fmt", "Println", (List<NodoAST>)args, fkleft, fkright); :}
+                  | FMT:fk PUNTO PRINTLN PAR1 PAR2
+                    {: RESULT = new LlamadaFuncion("fmt", "Println", new ArrayList<>(), fkleft, fkright); :}
                   | STRCONV:sk PUNTO ATOI PAR1 EXPRESION:e PAR2
                     {: 
                       List<NodoAST> args = new ArrayList<>();
@@ -224,11 +236,11 @@ LLAMADA_FUNCION ::= FMT:fk PUNTO PRINTLN PAR1 LISTA_EXPRESIONES:args PAR2
                       args.add(e);
                       RESULT = new LlamadaFuncion("strconv", "ParseFloat", args, skleft, skright);
                     :}
-                  | REFLECT:rk PUNTO TYPEOF PAR1 EXPRESION:e PAR2 PUNTO STRINGFUNC PAR1 PAR2
+                  | REFLECT:rk PUNTO TYPEOF PAR1 EXPRESION:e PAR2
                     {: 
                       List<NodoAST> args = new ArrayList<>();
                       args.add(e);
-                      RESULT = new LlamadaFuncion("reflect", "TypeOf", args, true, rkleft, rkright);
+                      RESULT = new LlamadaFuncion("reflect", "TypeOf", args, rkleft, rkright);
                     :}
 ;
 

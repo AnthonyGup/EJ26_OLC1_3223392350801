@@ -29,10 +29,13 @@ public class VisitorEjecucion implements Visitor<Valor> {
     @Override
     public Valor visit(Bloque.Context ctx) {
         gestor.entrarBloque();
-        for (NodoAST instr : ctx.instrucciones) {
-            instr.accept(this);
+        try {
+            for (NodoAST instr : ctx.instrucciones) {
+                instr.accept(this);
+            }
+        } finally {
+            gestor.salirBloque();
         }
-        gestor.salirBloque();
         return defaultVoid;
     }
 
@@ -88,6 +91,7 @@ public class VisitorEjecucion implements Visitor<Valor> {
 
     @Override
     public Valor visit(For.Context ctx) {
+        gestor.entrarBloque();
         if (ctx.init != null) {
             ctx.init.accept(this);
         }
@@ -115,6 +119,7 @@ public class VisitorEjecucion implements Visitor<Valor> {
         } catch (BreakException e) {
         }
 
+        gestor.salirBloque();
         return defaultVoid;
     }
 
@@ -207,10 +212,7 @@ public class VisitorEjecucion implements Visitor<Valor> {
                     throw new RuntimeException("Linea " + ctx.linea + ": reflect.TypeOf espera un argumento");
                 }
                 Valor expr = ctx.argumentos.get(0).accept(this);
-                if (ctx.llamarString) {
-                    return new ValorString(expr.obtenerTipoNombre(), ctx.linea, ctx.columna);
-                }
-                return expr;
+                return new ValorString(expr.obtenerTipoNombre(), ctx.linea, ctx.columna);
 
             default:
                 throw new RuntimeException("Linea " + ctx.linea + ": paquete desconocido '" + ctx.paquete + "'");

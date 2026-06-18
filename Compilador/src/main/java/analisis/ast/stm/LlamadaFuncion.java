@@ -7,7 +7,6 @@ import java.util.List;
 public class LlamadaFuncion implements NodoAST {
     private final String paquete;
     private final String funcion;
-    private final boolean llamarString;
     private final List<NodoAST> argumentos;
     private final int linea;
     private final int columna;
@@ -16,16 +15,6 @@ public class LlamadaFuncion implements NodoAST {
         this.paquete = paquete;
         this.funcion = funcion;
         this.argumentos = argumentos;
-        this.llamarString = false;
-        this.linea = linea;
-        this.columna = columna;
-    }
-
-    public LlamadaFuncion(String paquete, String funcion, List<NodoAST> argumentos, boolean llamarString, int linea, int columna) {
-        this.paquete = paquete;
-        this.funcion = funcion;
-        this.argumentos = argumentos;
-        this.llamarString = llamarString;
         this.linea = linea;
         this.columna = columna;
     }
@@ -33,7 +22,6 @@ public class LlamadaFuncion implements NodoAST {
     public static class Context {
         public final String paquete;
         public final String funcion;
-        public final boolean llamarString;
         public final List<NodoAST> argumentos;
         public final int linea;
         public final int columna;
@@ -41,7 +29,6 @@ public class LlamadaFuncion implements NodoAST {
         public Context(LlamadaFuncion node) {
             this.paquete = node.paquete;
             this.funcion = node.funcion;
-            this.llamarString = node.llamarString;
             this.argumentos = node.argumentos;
             this.linea = node.linea;
             this.columna = node.columna;

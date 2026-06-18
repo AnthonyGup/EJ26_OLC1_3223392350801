@@ -70,10 +70,13 @@ public class VisitorSemantico implements Visitor<Void> {
     @Override
     public Void visit(Bloque.Context ctx) {
         tabla.nuevoAmbito();
-        for (NodoAST instr : ctx.instrucciones) {
-            instr.accept(this);
+        try {
+            for (NodoAST instr : ctx.instrucciones) {
+                instr.accept(this);
+            }
+        } finally {
+            tabla.cerrarAmbito();
         }
-        tabla.cerrarAmbito();
         return null;
     }
 
@@ -183,28 +186,33 @@ public class VisitorSemantico implements Visitor<Void> {
 
     @Override
     public Void visit(For.Context ctx) {
+        tabla.nuevoAmbito();
         boolean antes = dentroDeFor;
         dentroDeFor = true;
 
-        // for init; cond; update
-        if (ctx.init != null) {
-            ctx.init.accept(this);
-        }
-
-        // Validar condición (si existe)
-        if (ctx.condicion != null) {
-            ctx.condicion.accept(this);
-            if (this.tipoResultado != TipoDato.BOOL) {
-                error(ctx.linea, "La condición del for debe ser de tipo bool");
+        try {
+            // for init; cond; update
+            if (ctx.init != null) {
+                ctx.init.accept(this);
             }
-        }
 
-        if (ctx.update != null) {
-            ctx.update.accept(this);
-        }
+            // Validar condición (si existe)
+            if (ctx.condicion != null) {
+                ctx.condicion.accept(this);
+                if (this.tipoResultado != TipoDato.BOOL) {
+                    error(ctx.linea, "La condición del for debe ser de tipo bool");
+                }
+            }
 
-        ctx.bloque.accept(this);
-        dentroDeFor = antes;
+            if (ctx.update != null) {
+                ctx.update.accept(this);
+            }
+
+            ctx.bloque.accept(this);
+        } finally {
+            dentroDeFor = antes;
+            tabla.cerrarAmbito();
+        }
 
         return null;
     }
@@ -278,7 +286,7 @@ public class VisitorSemantico implements Visitor<Void> {
                 if (ctx.argumentos.size() > 0) {
                     ctx.argumentos.get(0).accept(this);
                 }
-                // reflect.TypeOf().String() devuelve un String
+                // reflect.TypeOf devuelve un String
                 tipoResultado = TipoDato.STRING;
                 break;
         }
