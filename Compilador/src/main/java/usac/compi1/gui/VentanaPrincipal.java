@@ -10,9 +10,10 @@ import usac.compi1.gui.reports.ReporteDialog;
 import usac.compi1.gui.reports.TokenInfo;
 import java_cup.runtime.Symbol;
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.*;
-import java.io.StringReader;
+import java.io.*;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -20,8 +21,10 @@ public class VentanaPrincipal extends JFrame {
 
     private final PanelEditor editor;
     private final PanelConsola consola;
+    private File archivoActual;
     private Lexer lexer;
     private parser parser;
+    private List<String> erroresSemanticos;
 
     public VentanaPrincipal() {
         super("Golite");
@@ -62,10 +65,16 @@ public class VentanaPrincipal extends JFrame {
 
         JMenu archivo = new JMenu("Archivo");
         JMenuItem nuevo = new JMenuItem("Nuevo");
-        nuevo.addActionListener(e -> editor.establecerTexto(""));
+        nuevo.addActionListener(e -> { editor.establecerTexto(""); archivoActual = null; });
+        JMenuItem abrir = new JMenuItem("Abrir");
+        abrir.addActionListener(e -> abrir());
+        JMenuItem guardar = new JMenuItem("Guardar");
+        guardar.addActionListener(e -> guardar());
         JMenuItem salir = new JMenuItem("Salir");
         salir.addActionListener(e -> System.exit(0));
         archivo.add(nuevo);
+        archivo.add(abrir);
+        archivo.add(guardar);
         archivo.add(new JSeparator());
         archivo.add(salir);
         bar.add(archivo);
@@ -118,6 +127,49 @@ public class VentanaPrincipal extends JFrame {
         return btn;
     }
 
+    private void abrir() {
+        JFileChooser fc = new JFileChooser();
+        fc.setFileFilter(new FileNameExtensionFilter("Archivos GoLite (*.glt)", "glt"));
+        if (archivoActual != null) {
+            fc.setCurrentDirectory(archivoActual.getParentFile());
+            fc.setSelectedFile(archivoActual);
+        }
+        int opt = fc.showOpenDialog(this);
+        if (opt == JFileChooser.APPROVE_OPTION) {
+            archivoActual = fc.getSelectedFile();
+            try (BufferedReader br = new BufferedReader(new FileReader(archivoActual))) {
+                StringBuilder sb = new StringBuilder();
+                String linea;
+                while ((linea = br.readLine()) != null) {
+                    sb.append(linea).append("\n");
+                }
+                editor.establecerTexto(sb.toString());
+            } catch (IOException e) {
+                JOptionPane.showMessageDialog(this, "Error al abrir el archivo: " + e.getMessage(),
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void guardar() {
+        if (archivoActual == null) {
+            JFileChooser fc = new JFileChooser();
+            fc.setFileFilter(new FileNameExtensionFilter("Archivos GoLite (*.glt)", "glt"));
+            int opt = fc.showSaveDialog(this);
+            if (opt != JFileChooser.APPROVE_OPTION) return;
+            archivoActual = fc.getSelectedFile();
+            if (!archivoActual.getName().toLowerCase().endsWith(".glt")) {
+                archivoActual = new File(archivoActual.getAbsolutePath() + ".glt");
+            }
+        }
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(archivoActual))) {
+            bw.write(editor.obtenerTexto());
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this, "Error al guardar el archivo: " + e.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
     private void run() {
         String codigo = editor.obtenerTexto();
         if (codigo.isBlank()) {
@@ -134,8 +186,9 @@ public class VentanaPrincipal extends JFrame {
 
             VisitorSemantico semantico = new VisitorSemantico();
             programa.accept(semantico);
+            erroresSemanticos = semantico.getErrores();
 
-            if (!semantico.getErrores().isEmpty()) {
+            if (!erroresSemanticos.isEmpty()) {
                 consola.limpiar();
                 for (String err : semantico.getErrores()) {
                     consola.append(err + "\n");
@@ -202,6 +255,20 @@ public class VentanaPrincipal extends JFrame {
         for (GoliteError e : parser.errors) {
             filas.add(new String[]{e.getDescripcion(),
                     String.valueOf(e.getLinea()), String.valueOf(e.getColumna()), e.getTipo()});
+        }
+        if (erroresSemanticos != null) {
+            for (String err : erroresSemanticos) {
+                String desc = err;
+                String linea = "";
+                if (err.startsWith("Linea ")) {
+                    int idx = err.indexOf(": ");
+                    if (idx > 0) {
+                        linea = err.substring(6, idx).trim();
+                        desc = err.substring(idx + 2);
+                    }
+                }
+                filas.add(new String[]{desc, linea, "", "Semantico"});
+            }
         }
 
         String[] cols = {"Descripcion", "Linea", "Columna", "Tipo"};
