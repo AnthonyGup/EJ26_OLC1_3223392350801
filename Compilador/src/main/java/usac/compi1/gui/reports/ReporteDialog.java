@@ -1,8 +1,10 @@
 package usac.compi1.gui.reports;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.MouseEvent;
 import java.util.List;
 
 public class ReporteDialog extends JDialog {
@@ -37,9 +39,26 @@ public class ReporteDialog extends JDialog {
             switch (nombre) {
                 case "No." -> { col.setPreferredWidth(35); col.setMaxWidth(45); }
                 case "Linea", "Columna" -> { col.setPreferredWidth(55); col.setMaxWidth(70); }
-                case "Tipo" -> { col.setPreferredWidth(75); col.setMaxWidth(90); }
+                case "Tipo" -> { col.setPreferredWidth(80); col.setMaxWidth(100); }
             }
         }
+
+        tabla.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+            private String tip;
+
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                tip = (value != null) ? value.toString() : null;
+                return super.getTableCellRendererComponent(table, value,
+                        isSelected, hasFocus, row, column);
+            }
+
+            @Override
+            public String getToolTipText(MouseEvent event) {
+                return tip;
+            }
+        });
 
         JScrollPane scroll = new JScrollPane(tabla);
         scroll.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));

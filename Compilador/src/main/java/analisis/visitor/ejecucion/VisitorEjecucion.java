@@ -80,11 +80,15 @@ public class VisitorEjecucion implements Visitor<Valor> {
 
     @Override
     public Valor visit(If.Context ctx) {
-        Valor cond = ctx.condicion.accept(this);
-        if (cond instanceof ValorBool b && b.valor()) {
+        if (ctx.condicion != null) {
+            Valor cond = ctx.condicion.accept(this);
+            if (cond instanceof ValorBool b && b.valor()) {
+                ctx.bloqueIf.accept(this);
+            } else if (ctx.bloqueElse != null) {
+                ctx.bloqueElse.accept(this);
+            }
+        } else {
             ctx.bloqueIf.accept(this);
-        } else if (ctx.bloqueElse != null) {
-            ctx.bloqueElse.accept(this);
         }
         return defaultVoid;
     }
@@ -98,6 +102,7 @@ public class VisitorEjecucion implements Visitor<Valor> {
 
         try {
             while (true) {
+                if (ctx.condicion == null) break;
                 Valor cond = ctx.condicion.accept(this);
                 if (cond instanceof ValorBool b) {
                     if (!b.valor()) {

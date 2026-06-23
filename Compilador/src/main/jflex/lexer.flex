@@ -11,10 +11,34 @@ import java.util.ArrayList;
 %{
     String cadena = "";
     int comentarioBloque = 0;
+    int profundidad = 0;
+    int ultimoToken = -1;
     public List<GoliteError> errores = new ArrayList<>();
     public List<TokenInfo> tokens = new ArrayList<>();
 
+    private boolean esFinLinea() {
+        switch (ultimoToken) {
+            case sym.IDENTIFICADOR:
+            case sym.ENTERO:
+            case sym.DECIMAL:
+            case sym.CHAR:
+            case sym.CADENA:
+            case sym.TRUE:
+            case sym.FALSE:
+            case sym.NIL:
+            case sym.PAR2:
+            case sym.MASMAS:
+            case sym.MENOSMENOS:
+            case sym.BREAK:
+            case sym.CONTINUE:
+                return profundidad > 0;
+            default:
+                return false;
+        }
+    }
+
     private Symbol token(int sym, String lexema, String tipo, int line, int col) {
+        ultimoToken = sym;
         tokens.add(new TokenInfo(lexema, tipo, line, col));
         return new Symbol(sym, line, col, lexema);
     }
@@ -50,7 +74,9 @@ newline    = [\n]
 %%
 
 <YYINITIAL> {whitespace}  { /* ignorar */ }
-<YYINITIAL> {newline}     { /* ignorar */ }
+<YYINITIAL> {newline}     {
+    if (esFinLinea()) return token(sym.FIN_LINEA, "\\n", "newline", yyline, yycolumn);
+}
 
 <YYINITIAL> "func"        { return token(sym.FUNC, yytext(), "func", yyline, yycolumn); }
 <YYINITIAL> "main"        { return token(sym.MAIN, yytext(), "main", yyline, yycolumn); }
@@ -106,8 +132,8 @@ newline    = [\n]
 <YYINITIAL> "!"           { return token(sym.NOT, yytext(), "!", yyline, yycolumn); }
 <YYINITIAL> "("           { return token(sym.PAR1, yytext(), "(", yyline, yycolumn); }
 <YYINITIAL> ")"           { return token(sym.PAR2, yytext(), ")", yyline, yycolumn); }
-<YYINITIAL> "{"           { return token(sym.LLAVE1, yytext(), "{", yyline, yycolumn); }
-<YYINITIAL> "}"           { return token(sym.LLAVE2, yytext(), "}", yyline, yycolumn); }
+<YYINITIAL> "{"           { profundidad++; return token(sym.LLAVE1, yytext(), "{", yyline, yycolumn); }
+<YYINITIAL> "}"           { profundidad--; return token(sym.LLAVE2, yytext(), "}", yyline, yycolumn); }
 <YYINITIAL> ";"           { return token(sym.PTOCOMA, yytext(), ";", yyline, yycolumn); }
 <YYINITIAL> "."           { return token(sym.PUNTO, yytext(), ".", yyline, yycolumn); }
 <YYINITIAL> ","           { return token(sym.COMA, yytext(), ",", yyline, yycolumn); }

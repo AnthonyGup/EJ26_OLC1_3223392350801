@@ -169,13 +169,13 @@ public class VisitorSemantico implements Visitor<Void> {
 
     @Override
     public Void visit(If.Context ctx) {
-        // Validar que la condición sea bool
-        ctx.condicion.accept(this);
-        if (this.tipoResultado != TipoDato.BOOL) {
-            error(ctx.linea, "La condición del if debe ser de tipo bool, no " + this.tipoResultado);
+        if (ctx.condicion != null) {
+            ctx.condicion.accept(this);
+            if (this.tipoResultado != TipoDato.BOOL) {
+                error(ctx.linea, "La condición del if debe ser de tipo bool, no " + this.tipoResultado);
+            }
         }
 
-        // Visitar bloques
         ctx.bloqueIf.accept(this);
         if (ctx.bloqueElse != null) {
             ctx.bloqueElse.accept(this);
@@ -191,12 +191,10 @@ public class VisitorSemantico implements Visitor<Void> {
         dentroDeFor = true;
 
         try {
-            // for init; cond; update
             if (ctx.init != null) {
                 ctx.init.accept(this);
             }
 
-            // Validar condición (si existe)
             if (ctx.condicion != null) {
                 ctx.condicion.accept(this);
                 if (this.tipoResultado != TipoDato.BOOL) {

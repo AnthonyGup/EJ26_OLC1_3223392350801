@@ -62,6 +62,7 @@ terminal IGUAL, MASIGUAL, MENOSIGUAL, DOSPUNTOSIGUAL;
 terminal IGUALIGUAL, DIFERENTE, MAYOR, MAYORIGUAL, MENOR, MENORIGUAL;
 terminal AND, OR, NOT;
 terminal PAR1, PAR2, LLAVE1, LLAVE2, PTOCOMA, PUNTO, COMA;
+terminal FIN_LINEA;
 terminal UMENOS;
 
 // ========== NO TERMINALES ==========
@@ -101,26 +102,34 @@ start with PROGRAMA;
 
 // ========== GRAMATICA ==========
 
-PROGRAMA ::= FUNC:f MAIN PAR1 PAR2 LLAVE1 INSTRUCCIONES:i LLAVE2
-             {: RESULT = new Programa((List<NodoAST>)i, fleft, fright); :}
+PROGRAMA ::= FUNC:f MAIN PAR1 PAR2 BLOQUE:b
+             {: RESULT = new Programa(((Bloque)b).instrucciones(), fleft, fright); :}
            | INSTRUCCIONES:i
              {: RESULT = new Programa((List<NodoAST>)i, ileft, iright); :}
 ;
 
-BLOQUE ::= LLAVE1:ll INSTRUCCIONES:list LLAVE2
+BLOQUE ::= LLAVE1:ll LLAVE2
+           {: RESULT = new Bloque(new ArrayList<>(), llleft, llright); :}
+         | LLAVE1:ll INSTRUCCIONES:list LLAVE2
            {: RESULT = new Bloque((List<NodoAST>)list, llleft, llright); :}
+         | LLAVE1:ll error LLAVE2
+           {: RESULT = new Bloque(new ArrayList<>(), llleft, llright); :}
 ;
 
-INSTRUCCIONES ::= INSTRUCCIONES:list INSTRUCCION:stm
+INSTRUCCIONES ::= INSTRUCCIONES:list FIN_LINEA
+                  {: RESULT = list; :}
+                | INSTRUCCIONES:list PTOCOMA
+                  {: RESULT = list; :}
+                | INSTRUCCIONES:list INSTRUCCION:stm
                   {: 
                     List<NodoAST> l = (List<NodoAST>)list;
-                    l.add(stm);
+                    if (stm != null) l.add(stm);
                     RESULT = l;
                   :}
                 | INSTRUCCION:stm
                   {: 
                     List<NodoAST> l = new ArrayList<>();
-                    l.add(stm);
+                    if (stm != null) l.add(stm);
                     RESULT = l;
                   :}
 ;
@@ -145,6 +154,7 @@ INSTRUCCION ::= DECLARACION_VAR:d  {: RESULT = d; :}
               | SENTENCIA_CONTINUE:d {: RESULT = d; :}
               | BLOQUE:d           {: RESULT = d; :}
               | EXPRESION:e        {: RESULT = e; :}
+              | error FIN_LINEA     {: RESULT = null; :}
               | error PTOCOMA      {: RESULT = null; :}
 ;
 
@@ -170,14 +180,18 @@ SENTENCIA_IF ::= IF EXPRESION:cond BLOQUE:b
                  {: RESULT = new If(cond, (Bloque)b, null, condleft, condright); :}
                | IF EXPRESION:cond BLOQUE:b ELSE BLOQUE:eb
                  {: RESULT = new If(cond, (Bloque)b, eb, condleft, condright); :}
-               | IF EXPRESION:cond BLOQUE:b ELSE SENTENCIA_IF:ei
-                 {: RESULT = new If(cond, (Bloque)b, ei, condleft, condright); :}
+                | IF EXPRESION:cond BLOQUE:b ELSE SENTENCIA_IF:ei
+                  {: RESULT = new If(cond, (Bloque)b, ei, condleft, condright); :}
+                | IF:ifk error BLOQUE:b
+                  {: RESULT = new If(null, (Bloque)b, null, ifkleft, ifkright); :}
 ;
 
 SENTENCIA_FOR ::= FOR:fk EXPRESION:cond BLOQUE:b
                   {: RESULT = new For(cond, (Bloque)b, fkleft, fkright); :}
                 | FOR:fk INSTRUCCION:init PTOCOMA EXPRESION:cond PTOCOMA INSTRUCCION:update BLOQUE:b
                   {: RESULT = new For(init, cond, update, (Bloque)b, fkleft, fkright); :}
+                | FOR:fk error BLOQUE:b
+                  {: RESULT = new For(null, (Bloque)b, fkleft, fkright); :}
 ;
 
 SENTENCIA_SWITCH ::= SWITCH:sw EXPRESION:e LLAVE1 LISTA_CASOS_SWITCH:casos SWITCH_DEFAULT:def LLAVE2

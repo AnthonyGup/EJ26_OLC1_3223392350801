@@ -14,6 +14,10 @@ public class Bloque implements NodoAST {
         this.columna = columna;
     }
 
+    public List<NodoAST> instrucciones() {
+        return instrucciones;
+    }
+
     public static class Context {
         public final List<NodoAST> instrucciones;
         public final int linea;
