@@ -5,6 +5,11 @@ import analisis.ast.exp.ExpBinaria;
 import analisis.ast.exp.ExpUnaria;
 import analisis.ast.exp.Identificador;
 import analisis.ast.exp.Literal;
+import analisis.ast.exp.SliceLiteral;
+import analisis.ast.exp.Len;
+import analisis.ast.exp.Append;
+import analisis.ast.exp.IndexAccess;
+import analisis.ast.stm.AssignIndex;
 import analisis.ast.stm.Asignacion;
 import analisis.ast.stm.AsignacionOp;
 import analisis.ast.stm.Break;
@@ -287,6 +292,59 @@ public class VisitorSemantico implements Visitor<Void> {
                 // reflect.TypeOf devuelve un String
                 tipoResultado = TipoDato.STRING;
                 break;
+            case "slices":
+                if (ctx.funcion.equals("Index")) {
+                    if (ctx.argumentos.size() == 2) {
+                        ctx.argumentos.get(0).accept(this);
+                        TipoDato tipoSlice = this.tipoResultado;
+                        ctx.argumentos.get(1).accept(this);
+                        TipoDato tipoValor = this.tipoResultado;
+
+                        if (tipoSlice != null && !esTipoSlice(tipoSlice)) {
+                            error(ctx.linea, "slices.Index: el primer argumento debe ser un slice");
+                        } else if (tipoSlice != null && tipoValor != null) {
+                            String elemType = tipoElementoDeSlice(tipoSlice);
+                            TipoDato elemTipo = TipoDato.valueOf(elemType.toUpperCase());
+                            if (!sonCompatibles(elemTipo, tipoValor)) {
+                                error(ctx.linea, "slices.Index: el valor no es compatible con el tipo del slice (" + elemType + ")");
+                            }
+                        }
+                    }
+                    tipoResultado = TipoDato.INT;
+                }
+                break;
+            case "strings":
+                if (ctx.funcion.equals("Join")) {
+                    if (ctx.argumentos.size() == 2) {
+                        ctx.argumentos.get(0).accept(this);
+                        TipoDato tipoSlice = this.tipoResultado;
+                        ctx.argumentos.get(1).accept(this);
+                        TipoDato tipoSep = this.tipoResultado;
+
+                        if (tipoSlice != null && tipoSlice != TipoDato.SLICE_STRING) {
+                            error(ctx.linea, "strings.Join: el primer argumento debe ser un slice de string");
+                        }
+                        if (tipoSep != null && tipoSep != TipoDato.STRING) {
+                            error(ctx.linea, "strings.Join: el separador debe ser un string");
+                        }
+                    }
+                    tipoResultado = TipoDato.STRING;
+                }
+                break;
+        }
+        return null;
+    }
+
+    private boolean esTipoSlice(TipoDato t) {
+        return t == TipoDato.SLICE_INT || t == TipoDato.SLICE_FLOAT64
+            || t == TipoDato.SLICE_STRING || t == TipoDato.SLICE_BOOL
+            || t == TipoDato.SLICE_RUNE;
+    }
+
+    private String tipoElementoDeSlice(TipoDato t) {
+        String name = t.name();
+        if (name.startsWith("SLICE_")) {
+            return name.substring(6);
         }
         return null;
     }
@@ -415,6 +473,130 @@ public class VisitorSemantico implements Visitor<Void> {
                 tipoResultado = TipoDato.NIL;
                 break;
         }
+        return null;
+    }
+
+    @Override
+    public Void visit(SliceLiteral.Context ctx) {
+        String tipoElem = ctx.tipoElemento;
+        TipoDato tipoSlice = TipoDato.valueOf("SLICE_" + tipoElem.toUpperCase());
+
+        for (NodoAST elem : ctx.elementos) {
+            elem.accept(this);
+            if (this.tipoResultado == null) continue;
+            if (!sonCompatibles(TipoDato.valueOf(tipoElem.toUpperCase()), this.tipoResultado)) {
+                error(ctx.linea, "Elemento de tipo " + this.tipoResultado + " no compatible con slice de " + tipoElem);
+            }
+        }
+
+        tipoResultado = tipoSlice;
+        return null;
+    }
+
+    @Override
+    public Void visit(Len.Context ctx) {
+        ctx.expr.accept(this);
+        if (this.tipoResultado != null && !esTipoSlice(this.tipoResultado)) {
+            error(ctx.linea, "len solo es válido para slices");
+            tipoResultado = null;
+        } else if (this.tipoResultado != null) {
+            tipoResultado = TipoDato.INT;
+        }
+        return null;
+    }
+
+    @Override
+    public Void visit(Append.Context ctx) {
+        ctx.slice.accept(this);
+        TipoDato tipoSlice = this.tipoResultado;
+
+        if (tipoSlice != null) {
+            if (!esTipoSlice(tipoSlice)) {
+                error(ctx.linea, "append: el primer argumento debe ser un slice");
+                tipoResultado = null;
+                return null;
+            }
+            String elemType = tipoElementoDeSlice(tipoSlice);
+            TipoDato elemTipo = TipoDato.valueOf(elemType.toUpperCase());
+
+            for (NodoAST elem : ctx.elementos) {
+                elem.accept(this);
+                if (this.tipoResultado == null) continue;
+                if (!sonCompatibles(elemTipo, this.tipoResultado)) {
+                    error(ctx.linea, "append: elemento de tipo " + this.tipoResultado + " no compatible con slice de " + elemType);
+                }
+            }
+        }
+
+        tipoResultado = tipoSlice;
+        return null;
+    }
+
+    @Override
+    public Void visit(IndexAccess.Context ctx) {
+        ctx.base.accept(this);
+        TipoDato tipoBase = this.tipoResultado;
+
+        ctx.indice.accept(this);
+        TipoDato tipoIndice = this.tipoResultado;
+
+        if (tipoBase == null || tipoIndice == null) {
+            return null;
+        }
+
+        if (!esTipoSlice(tipoBase)) {
+            error(ctx.linea, "El acceso por indice solo es valido para slices");
+            tipoResultado = null;
+            return null;
+        }
+
+        if (tipoIndice != TipoDato.INT) {
+            error(ctx.linea, "El indice debe ser de tipo int");
+            tipoResultado = null;
+            return null;
+        }
+
+        String nombreElem = tipoElementoDeSlice(tipoBase);
+        tipoResultado = TipoDato.valueOf(nombreElem.toUpperCase());
+        return null;
+    }
+
+    @Override
+    public Void visit(AssignIndex.Context ctx) {
+        Simbolo s = tabla.buscar(ctx.id);
+        if (s == null) {
+            error(ctx.linea, "Variable '" + ctx.id + "' no declarada");
+            tipoResultado = null;
+            return null;
+        }
+        TipoDato tipoBase = s.tipo;
+
+        ctx.indice.accept(this);
+        TipoDato tipoIndice = this.tipoResultado;
+
+        ctx.valor.accept(this);
+        TipoDato tipoValor = this.tipoResultado;
+
+        if (tipoBase == null || tipoIndice == null || tipoValor == null) {
+            return null;
+        }
+
+        if (!esTipoSlice(tipoBase)) {
+            error(ctx.linea, "La asignacion por indice solo es valida para slices");
+            return null;
+        }
+
+        if (tipoIndice != TipoDato.INT) {
+            error(ctx.linea, "El indice debe ser de tipo int");
+            return null;
+        }
+
+        String nombreElem = tipoElementoDeSlice(tipoBase);
+        TipoDato tipoElem = TipoDato.valueOf(nombreElem.toUpperCase());
+        if (!sonCompatibles(tipoElem, tipoValor)) {
+            error(ctx.linea, "No se puede asignar un valor de tipo " + tipoValor + " a un elemento de tipo " + nombreElem);
+        }
+
         return null;
     }
 

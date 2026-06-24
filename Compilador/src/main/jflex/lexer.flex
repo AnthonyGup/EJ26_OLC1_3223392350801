@@ -104,6 +104,12 @@ newline    = [\n]
 <YYINITIAL> "TypeOf"      { return token(sym.TYPEOF, yytext(), "TypeOf", yyline, yycolumn); }
 <YYINITIAL> "Atoi"        { return token(sym.ATOI, yytext(), "Atoi", yyline, yycolumn); }
 <YYINITIAL> "ParseFloat"  { return token(sym.PARSEFLOAT, yytext(), "ParseFloat", yyline, yycolumn); }
+<YYINITIAL> "slices"      { return token(sym.SLICES, yytext(), "slices", yyline, yycolumn); }
+<YYINITIAL> "Index"       { return token(sym.INDEX, yytext(), "Index", yyline, yycolumn); }
+<YYINITIAL> "strings"     { return token(sym.STRINGS, yytext(), "strings", yyline, yycolumn); }
+<YYINITIAL> "Join"        { return token(sym.JOIN, yytext(), "Join", yyline, yycolumn); }
+<YYINITIAL> "len"         { return token(sym.LEN, yytext(), "len", yyline, yycolumn); }
+<YYINITIAL> "append"      { return token(sym.APPEND, yytext(), "append", yyline, yycolumn); }
 
 <YYINITIAL> "=="          { return token(sym.IGUALIGUAL, yytext(), "==", yyline, yycolumn); }
 <YYINITIAL> "!="          { return token(sym.DIFERENTE, yytext(), "!=", yyline, yycolumn); }
@@ -130,6 +136,8 @@ newline    = [\n]
 <YYINITIAL> "'\\"[\\'nrt]"'" { return token(sym.CHAR, yytext(), "rune", yyline, yycolumn); }
 <YYINITIAL> "="           { return token(sym.IGUAL, yytext(), "=", yyline, yycolumn); }
 <YYINITIAL> "!"           { return token(sym.NOT, yytext(), "!", yyline, yycolumn); }
+<YYINITIAL> "["           { return token(sym.CORCHETE1, yytext(), "[", yyline, yycolumn); }
+<YYINITIAL> "]"           { return token(sym.CORCHETE2, yytext(), "]", yyline, yycolumn); }
 <YYINITIAL> "("           { return token(sym.PAR1, yytext(), "(", yyline, yycolumn); }
 <YYINITIAL> ")"           { return token(sym.PAR2, yytext(), ")", yyline, yycolumn); }
 <YYINITIAL> "{"           { profundidad++; return token(sym.LLAVE1, yytext(), "{", yyline, yycolumn); }

@@ -57,10 +57,15 @@ terminal SWITCH, CASE, DEFAULT, DOSPUNTOS;
 terminal TRUE, FALSE, NIL;
 terminal INT, FLOAT64, STRING, BOOL, RUNE;
 terminal FMT, STRCONV, REFLECT, TYPEOF, ATOI, PARSEFLOAT, PRINTLN;
+terminal SLICES, INDEX;
+terminal STRINGS, JOIN;
+terminal LEN;
+terminal APPEND;
 terminal MAS, MENOS, MULT, DIV, MOD, MASMAS, MENOSMENOS;
 terminal IGUAL, MASIGUAL, MENOSIGUAL, DOSPUNTOSIGUAL;
 terminal IGUALIGUAL, DIFERENTE, MAYOR, MAYORIGUAL, MENOR, MENORIGUAL;
 terminal AND, OR, NOT;
+terminal CORCHETE1, CORCHETE2;
 terminal PAR1, PAR2, LLAVE1, LLAVE2, PTOCOMA, PUNTO, COMA;
 terminal FIN_LINEA;
 terminal UMENOS;
@@ -73,6 +78,7 @@ nonterminal List INSTRUCCIONES;
 nonterminal NodoAST INSTRUCCION;
 nonterminal NodoAST DECLARACION_VAR;
 nonterminal NodoAST ASIGNACION;
+nonterminal NodoAST ASIGNACION_INDEX;
 nonterminal NodoAST ASIGNACION_OP;
 nonterminal NodoAST SENTENCIA_IF;
 nonterminal NodoAST SENTENCIA_FOR;
@@ -136,6 +142,7 @@ INSTRUCCIONES ::= INSTRUCCIONES:list FIN_LINEA
 
 INSTRUCCION ::= DECLARACION_VAR:d  {: RESULT = d; :}
               | ASIGNACION:d       {: RESULT = d; :}
+              | ASIGNACION_INDEX:d {: RESULT = d; :}
               | ASIGNACION_OP:d    {: RESULT = d; :}
               | IDENTIFICADOR:id MASMAS
                 {: 
@@ -168,6 +175,10 @@ DECLARACION_VAR ::= VAR IDENTIFICADOR:id TIPO:t IGUAL EXPRESION:e
 
 ASIGNACION ::= IDENTIFICADOR:id IGUAL EXPRESION:e
                {: RESULT = new Asignacion((String)id, e, idleft, idright); :}
+;
+
+ASIGNACION_INDEX ::= IDENTIFICADOR:id CORCHETE1 EXPRESION:idx CORCHETE2 IGUAL EXPRESION:val
+                     {: RESULT = new AssignIndex((String)id, idx, val, idleft, idright); :}
 ;
 
 ASIGNACION_OP ::= IDENTIFICADOR:id MASIGUAL EXPRESION:e
@@ -256,6 +267,20 @@ LLAMADA_FUNCION ::= FMT:fk PUNTO PRINTLN PAR1 LISTA_EXPRESIONES:args PAR2
                       args.add(e);
                       RESULT = new LlamadaFuncion("reflect", "TypeOf", args, rkleft, rkright);
                     :}
+                  | SLICES:sk PUNTO INDEX PAR1 EXPRESION:s COMA EXPRESION:v PAR2
+                    {: 
+                      List<NodoAST> args = new ArrayList<>();
+                      args.add(s);
+                      args.add(v);
+                      RESULT = new LlamadaFuncion("slices", "Index", args, skleft, skright);
+                    :}
+                  | STRINGS:sk PUNTO JOIN PAR1 EXPRESION:s COMA EXPRESION:sep PAR2
+                    {: 
+                      List<NodoAST> args = new ArrayList<>();
+                      args.add(s);
+                      args.add(sep);
+                      RESULT = new LlamadaFuncion("strings", "Join", args, skleft, skright);
+                    :}
 ;
 
 LISTA_EXPRESIONES ::= LISTA_EXPRESIONES:list COMA EXPRESION:e
@@ -277,6 +302,11 @@ TIPO ::= INT     {: RESULT = "int"; :}
        | STRING  {: RESULT = "string"; :}
        | BOOL    {: RESULT = "bool"; :}
        | RUNE    {: RESULT = "rune"; :}
+       | CORCHETE1 CORCHETE2 INT     {: RESULT = "SLICE_INT"; :}
+       | CORCHETE1 CORCHETE2 FLOAT64 {: RESULT = "SLICE_FLOAT64"; :}
+       | CORCHETE1 CORCHETE2 STRING  {: RESULT = "SLICE_STRING"; :}
+       | CORCHETE1 CORCHETE2 BOOL    {: RESULT = "SLICE_BOOL"; :}
+       | CORCHETE1 CORCHETE2 RUNE    {: RESULT = "SLICE_RUNE"; :}
 ;
 
 EXPRESION ::= EXPRESION:izq OR EXPRESION:der
@@ -329,4 +359,22 @@ EXPRESION ::= EXPRESION:izq OR EXPRESION:der
               {: RESULT = e; :}
             | LLAMADA_FUNCION:fn
               {: RESULT = fn; :}
+            | LEN:lk PAR1 EXPRESION:e PAR2
+              {: RESULT = new Len(e, lkleft, lkright); :}
+            | APPEND:ak PAR1 EXPRESION:s COMA LISTA_EXPRESIONES:elems PAR2
+              {: RESULT = new Append(s, (List<NodoAST>)elems, akleft, akright); :}
+            | IDENTIFICADOR:id CORCHETE1 EXPRESION:idx CORCHETE2
+              {: RESULT = new IndexAccess(new Identificador((String)id, idleft, idright), idx, idleft, idright); :}
+            | CORCHETE1 CORCHETE2 TIPO:t LLAVE1 LISTA_EXPRESIONES:elems LLAVE2
+              {: 
+                String st = (String)t;
+                String elemType = st.startsWith("SLICE_") ? st.substring(6).toLowerCase() : st;
+                RESULT = new SliceLiteral(elemType, (List<NodoAST>)elems, tleft, tright);
+              :}
+            | CORCHETE1 CORCHETE2 TIPO:t LLAVE1 LLAVE2
+              {:
+                String st = (String)t;
+                String elemType = st.startsWith("SLICE_") ? st.substring(6).toLowerCase() : st;
+                RESULT = new SliceLiteral(elemType, new ArrayList<>(), tleft, tright);
+              :}
 ;

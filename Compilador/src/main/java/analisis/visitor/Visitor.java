@@ -20,4 +20,9 @@ public interface Visitor<T> {
     T visit(ExpUnaria.Context ctx);
     T visit(Literal.Context ctx);
     T visit(Identificador.Context ctx);
+    T visit(SliceLiteral.Context ctx);
+    T visit(Len.Context ctx);
+    T visit(Append.Context ctx);
+    T visit(IndexAccess.Context ctx);
+    T visit(AssignIndex.Context ctx);
 }

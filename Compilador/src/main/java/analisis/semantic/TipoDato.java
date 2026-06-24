@@ -6,7 +6,12 @@ public enum TipoDato {
     STRING(""),
     BOOL(false),
     RUNE(0),
-    NIL(null);
+    NIL(null),
+    SLICE_INT(null),
+    SLICE_FLOAT64(null),
+    SLICE_STRING(null),
+    SLICE_BOOL(null),
+    SLICE_RUNE(null);
 
     private Object valorDefecto;
 

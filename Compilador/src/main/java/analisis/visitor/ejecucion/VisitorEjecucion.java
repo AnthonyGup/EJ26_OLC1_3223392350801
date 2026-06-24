@@ -5,6 +5,7 @@ import analisis.ast.exp.*;
 import analisis.ast.stm.*;
 import analisis.visitor.Visitor;
 import analisis.visitor.ejecucion.valor.*;
+import java.util.List;
 
 public class VisitorEjecucion implements Visitor<Valor> {
 
@@ -219,6 +220,59 @@ public class VisitorEjecucion implements Visitor<Valor> {
                 Valor expr = ctx.argumentos.get(0).accept(this);
                 return new ValorString(expr.obtenerTipoNombre(), ctx.linea, ctx.columna);
 
+            case "slices":
+                if (ctx.funcion.equals("Index")) {
+                    if (ctx.argumentos.size() < 2) {
+                        throw new RuntimeException("Linea " + ctx.linea + ": slices.Index espera 2 argumentos");
+                    }
+                    Valor slice = ctx.argumentos.get(0).accept(this);
+                    Valor buscado = ctx.argumentos.get(1).accept(this);
+
+                    if (!(slice instanceof ValorSlice vs)) {
+                        throw new RuntimeException("Linea " + ctx.linea + ": slices.Index: el primer argumento debe ser un slice");
+                    }
+
+                    java.util.List<Valor> elementos = vs.elementos();
+                    for (int i = 0; i < elementos.size(); i++) {
+                        Valor comp = Operaciones.comparar(elementos.get(i), buscado, ctx.linea);
+                        if (comp instanceof ValorBool b && b.valor()) {
+                            return new ValorInt(i, ctx.linea, ctx.columna);
+                        }
+                    }
+                    return new ValorInt(-1, ctx.linea, ctx.columna);
+                }
+                return defaultVoid;
+
+            case "strings":
+                if (ctx.funcion.equals("Join")) {
+                    if (ctx.argumentos.size() < 2) {
+                        throw new RuntimeException("Linea " + ctx.linea + ": strings.Join espera 2 argumentos");
+                    }
+                    Valor sliceVal = ctx.argumentos.get(0).accept(this);
+                    Valor sepVal = ctx.argumentos.get(1).accept(this);
+
+                    if (!(sliceVal instanceof ValorSlice vs)) {
+                        throw new RuntimeException("Linea " + ctx.linea + ": strings.Join: el primer argumento debe ser un slice");
+                    }
+                    if (!(sepVal instanceof ValorString sep)) {
+                        throw new RuntimeException("Linea " + ctx.linea + ": strings.Join: el separador debe ser un string");
+                    }
+
+                    StringBuilder sb = new StringBuilder();
+                    java.util.List<Valor> elementos = vs.elementos();
+                    for (int i = 0; i < elementos.size(); i++) {
+                        if (i > 0) sb.append(sep.valor());
+                        Valor e = elementos.get(i);
+                        if (e instanceof ValorString vs2) {
+                            sb.append(vs2.valor());
+                        } else {
+                            throw new RuntimeException("Linea " + ctx.linea + ": strings.Join: elemento del slice no es string");
+                        }
+                    }
+                    return new ValorString(sb.toString(), ctx.linea, ctx.columna);
+                }
+                return defaultVoid;
+
             default:
                 throw new RuntimeException("Linea " + ctx.linea + ": paquete desconocido '" + ctx.paquete + "'");
         }
@@ -315,6 +369,90 @@ public class VisitorEjecucion implements Visitor<Valor> {
             default ->
                 throw new RuntimeException("Linea " + ctx.linea + ": tipo literal desconocido '" + ctx.tipo + "'");
         };
+    }
+
+    @Override
+    public Valor visit(SliceLiteral.Context ctx) {
+        List<NodoAST> exprs = ctx.elementos;
+        List<Valor> valores = new java.util.ArrayList<>();
+        for (NodoAST e : exprs) {
+            valores.add(e.accept(this));
+        }
+        return new ValorSlice(valores, ctx.tipoElemento, ctx.linea, ctx.columna);
+    }
+
+    @Override
+    public Valor visit(Len.Context ctx) {
+        Valor val = ctx.expr.accept(this);
+        if (val instanceof ValorSlice vs) {
+            return new ValorInt(vs.elementos().size(), ctx.linea, ctx.columna);
+        }
+        throw new RuntimeException("Linea " + ctx.linea + ": len solo es válido para slices");
+    }
+
+    @Override
+    public Valor visit(Append.Context ctx) {
+        Valor sliceVal = ctx.slice.accept(this);
+        if (!(sliceVal instanceof ValorSlice vs)) {
+            throw new RuntimeException("Linea " + ctx.linea + ": append: el primer argumento debe ser un slice");
+        }
+
+        java.util.List<Valor> nuevos = new java.util.ArrayList<>(vs.elementos());
+        for (NodoAST elem : ctx.elementos) {
+            nuevos.add(elem.accept(this));
+        }
+
+        return new ValorSlice(nuevos, vs.tipoElemento(), ctx.linea, ctx.columna);
+    }
+
+    @Override
+    public Valor visit(IndexAccess.Context ctx) {
+        Valor baseVal = ctx.base.accept(this);
+        Valor idxVal = ctx.indice.accept(this);
+
+        if (!(baseVal instanceof ValorSlice vs)) {
+            throw new RuntimeException("Linea " + ctx.linea + ": el acceso por indice solo es valido para slices");
+        }
+        if (!(idxVal instanceof ValorInt vi)) {
+            throw new RuntimeException("Linea " + ctx.linea + ": el indice debe ser un entero");
+        }
+
+        int idx = vi.valor();
+        java.util.List<Valor> elems = vs.elementos();
+
+        if (idx < 0 || idx >= elems.size()) {
+            throw new RuntimeException("Linea " + ctx.linea + ": indice " + idx + " fuera de rango (tamaño " + elems.size() + ")");
+        }
+
+        return elems.get(idx);
+    }
+
+    @Override
+    public Valor visit(AssignIndex.Context ctx) {
+        Valor baseVal = gestor.buscar(ctx.id, ctx.linea);
+        Valor idxVal = ctx.indice.accept(this);
+        Valor valVal = ctx.valor.accept(this);
+
+        if (!(baseVal instanceof ValorSlice vs)) {
+            throw new RuntimeException("Linea " + ctx.linea + ": la asignacion por indice solo es valida para slices");
+        }
+        if (!(idxVal instanceof ValorInt vi)) {
+            throw new RuntimeException("Linea " + ctx.linea + ": el indice debe ser un entero");
+        }
+
+        int idx = vi.valor();
+        java.util.List<Valor> elems = vs.elementos();
+
+        if (idx < 0 || idx >= elems.size()) {
+            throw new RuntimeException("Linea " + ctx.linea + ": indice " + idx + " fuera de rango (tamaño " + elems.size() + ")");
+        }
+
+        java.util.List<Valor> nuevos = new java.util.ArrayList<>(elems);
+        nuevos.set(idx, valVal);
+        ValorSlice nuevoSlice = new ValorSlice(nuevos, vs.tipoElemento(), ctx.linea, ctx.columna);
+
+        gestor.asignar(ctx.id, nuevoSlice, ctx.linea);
+        return defaultVoid;
     }
 
     @Override
