@@ -382,6 +382,19 @@ public class VisitorEjecucion implements Visitor<Valor> {
     }
 
     @Override
+    public Valor visit(SliceLiteral2D.Context ctx) {
+        List<Valor> outerElems = new java.util.ArrayList<>();
+        for (List<NodoAST> fila : ctx.filas) {
+            List<Valor> innerElems = new java.util.ArrayList<>();
+            for (NodoAST expr : fila) {
+                innerElems.add(expr.accept(this));
+            }
+            outerElems.add(new ValorSlice(innerElems, ctx.tipo, ctx.linea, ctx.columna));
+        }
+        return new ValorSlice(outerElems, "[]" + ctx.tipo, ctx.linea, ctx.columna);
+    }
+
+    @Override
     public Valor visit(Len.Context ctx) {
         Valor val = ctx.expr.accept(this);
         if (val instanceof ValorSlice vs) {
@@ -452,6 +465,41 @@ public class VisitorEjecucion implements Visitor<Valor> {
         ValorSlice nuevoSlice = new ValorSlice(nuevos, vs.tipoElemento(), ctx.linea, ctx.columna);
 
         gestor.asignar(ctx.id, nuevoSlice, ctx.linea);
+        return defaultVoid;
+    }
+
+    @Override
+    public Valor visit(AssignIndex2D.Context ctx) {
+        Valor baseVal = gestor.buscar(ctx.id, ctx.linea);
+        Valor idx1Val = ctx.indice1.accept(this);
+        Valor idx2Val = ctx.indice2.accept(this);
+        Valor valVal = ctx.valor.accept(this);
+
+        if (!(baseVal instanceof ValorSlice vs)) {
+            throw new RuntimeException("Linea " + ctx.linea + ": la asignacion multidimensional solo es valida para matrices");
+        }
+        if (!(idx1Val instanceof ValorInt vi1)) {
+            throw new RuntimeException("Linea " + ctx.linea + ": el indice debe ser un entero");
+        }
+        if (!(idx2Val instanceof ValorInt vi2)) {
+            throw new RuntimeException("Linea " + ctx.linea + ": el indice debe ser un entero");
+        }
+
+        int i1 = vi1.valor(), i2 = vi2.valor();
+        if (i1 < 0 || i1 >= vs.elementos().size()) {
+            throw new RuntimeException("Linea " + ctx.linea + ": indice " + i1 + " fuera de rango");
+        }
+
+        ValorSlice inner = (ValorSlice) vs.elementos().get(i1);
+        if (i2 < 0 || i2 >= inner.elementos().size()) {
+            throw new RuntimeException("Linea " + ctx.linea + ": indice " + i2 + " fuera de rango");
+        }
+
+        java.util.List<Valor> outerElems = new java.util.ArrayList<>(vs.elementos());
+        java.util.List<Valor> innerElems = new java.util.ArrayList<>(inner.elementos());
+        innerElems.set(i2, valVal);
+        outerElems.set(i1, new ValorSlice(innerElems, inner.tipoElemento(), ctx.linea, ctx.columna));
+        gestor.asignar(ctx.id, new ValorSlice(outerElems, vs.tipoElemento(), ctx.linea, ctx.columna), ctx.linea);
         return defaultVoid;
     }
 

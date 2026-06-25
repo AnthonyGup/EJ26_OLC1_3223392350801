@@ -9,7 +9,9 @@ import analisis.ast.exp.SliceLiteral;
 import analisis.ast.exp.Len;
 import analisis.ast.exp.Append;
 import analisis.ast.exp.IndexAccess;
+import analisis.ast.exp.SliceLiteral2D;
 import analisis.ast.stm.AssignIndex;
+import analisis.ast.stm.AssignIndex2D;
 import analisis.ast.stm.Asignacion;
 import analisis.ast.stm.AsignacionOp;
 import analisis.ast.stm.Break;
@@ -336,9 +338,7 @@ public class VisitorSemantico implements Visitor<Void> {
     }
 
     private boolean esTipoSlice(TipoDato t) {
-        return t == TipoDato.SLICE_INT || t == TipoDato.SLICE_FLOAT64
-            || t == TipoDato.SLICE_STRING || t == TipoDato.SLICE_BOOL
-            || t == TipoDato.SLICE_RUNE;
+        return t.name().startsWith("SLICE_");
     }
 
     private String tipoElementoDeSlice(TipoDato t) {
@@ -494,6 +494,24 @@ public class VisitorSemantico implements Visitor<Void> {
     }
 
     @Override
+    public Void visit(SliceLiteral2D.Context ctx) {
+        String tipoBase = ctx.tipo;
+        TipoDato tipoElem = TipoDato.valueOf(tipoBase.toUpperCase());
+
+        for (List<NodoAST> fila : ctx.filas) {
+            for (NodoAST elem : fila) {
+                elem.accept(this);
+                if (this.tipoResultado != null && !sonCompatibles(tipoElem, this.tipoResultado)) {
+                    error(ctx.linea, "Elemento de tipo " + this.tipoResultado + " no compatible con matriz de " + tipoBase);
+                }
+            }
+        }
+
+        tipoResultado = TipoDato.valueOf("SLICE_SLICE_" + tipoBase.toUpperCase());
+        return null;
+    }
+
+    @Override
     public Void visit(Len.Context ctx) {
         ctx.expr.accept(this);
         if (this.tipoResultado != null && !esTipoSlice(this.tipoResultado)) {
@@ -595,6 +613,48 @@ public class VisitorSemantico implements Visitor<Void> {
         TipoDato tipoElem = TipoDato.valueOf(nombreElem.toUpperCase());
         if (!sonCompatibles(tipoElem, tipoValor)) {
             error(ctx.linea, "No se puede asignar un valor de tipo " + tipoValor + " a un elemento de tipo " + nombreElem);
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visit(AssignIndex2D.Context ctx) {
+        Simbolo s = tabla.buscar(ctx.id);
+        if (s == null) {
+            error(ctx.linea, "Variable '" + ctx.id + "' no declarada");
+            tipoResultado = null;
+            return null;
+        }
+        TipoDato tipoBase = s.tipo;
+
+        if (tipoBase == null || !esTipoSlice(tipoBase) || !tipoBase.name().startsWith("SLICE_SLICE_")) {
+            error(ctx.linea, "Acceso multidimensional solo valido para matrices ([][]T)");
+            return null;
+        }
+
+        ctx.indice1.accept(this);
+        if (this.tipoResultado != TipoDato.INT) {
+            error(ctx.linea, "El indice debe ser de tipo int");
+            return null;
+        }
+
+        ctx.indice2.accept(this);
+        if (this.tipoResultado != TipoDato.INT) {
+            error(ctx.linea, "El indice debe ser de tipo int");
+            return null;
+        }
+
+        ctx.valor.accept(this);
+        TipoDato tipoValor = this.tipoResultado;
+
+        String innerTypeName = tipoElementoDeSlice(tipoBase);
+        TipoDato innerTipo = TipoDato.valueOf(innerTypeName);
+        String elemTypeName = tipoElementoDeSlice(innerTipo);
+        TipoDato elemTipo = TipoDato.valueOf(elemTypeName);
+
+        if (!sonCompatibles(elemTipo, tipoValor)) {
+            error(ctx.linea, "No se puede asignar un valor de tipo " + tipoValor + " a un elemento de tipo " + elemTypeName.toLowerCase());
         }
 
         return null;

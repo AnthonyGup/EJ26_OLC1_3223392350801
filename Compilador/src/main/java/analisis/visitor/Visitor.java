@@ -25,4 +25,6 @@ public interface Visitor<T> {
     T visit(Append.Context ctx);
     T visit(IndexAccess.Context ctx);
     T visit(AssignIndex.Context ctx);
+    T visit(SliceLiteral2D.Context ctx);
+    T visit(AssignIndex2D.Context ctx);
 }

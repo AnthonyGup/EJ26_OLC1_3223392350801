@@ -89,9 +89,12 @@ nonterminal Object CASO_SWITCH;
 nonterminal NodoAST SWITCH_DEFAULT;
 nonterminal NodoAST LLAMADA_FUNCION;
 nonterminal NodoAST EXPRESION;
+nonterminal NodoAST ASIGNACION_INDEX_2D;
 nonterminal String TIPO;
 nonterminal List LISTA_EXPRESIONES;
 nonterminal List LISTA_CASOS_SWITCH;
+nonterminal List FILAS_2D;
+nonterminal List FILA_2D;
 
 // ========== PRECEDENCIA ==========
 
@@ -140,10 +143,11 @@ INSTRUCCIONES ::= INSTRUCCIONES:list FIN_LINEA
                   :}
 ;
 
-INSTRUCCION ::= DECLARACION_VAR:d  {: RESULT = d; :}
-              | ASIGNACION:d       {: RESULT = d; :}
-              | ASIGNACION_INDEX:d {: RESULT = d; :}
-              | ASIGNACION_OP:d    {: RESULT = d; :}
+INSTRUCCION ::= DECLARACION_VAR:d      {: RESULT = d; :}
+              | ASIGNACION:d           {: RESULT = d; :}
+              | ASIGNACION_INDEX:d     {: RESULT = d; :}
+              | ASIGNACION_INDEX_2D:d  {: RESULT = d; :}
+              | ASIGNACION_OP:d        {: RESULT = d; :}
               | IDENTIFICADOR:id MASMAS
                 {: 
                   NodoAST uno = new Literal("1", "int", idleft, idright);
@@ -185,6 +189,10 @@ ASIGNACION_OP ::= IDENTIFICADOR:id MASIGUAL EXPRESION:e
                   {: RESULT = new AsignacionOp((String)id, "+=", e, idleft, idright); :}
                 | IDENTIFICADOR:id MENOSIGUAL EXPRESION:e
                   {: RESULT = new AsignacionOp((String)id, "-=", e, idleft, idright); :}
+;
+
+ASIGNACION_INDEX_2D ::= IDENTIFICADOR:id CORCHETE1 EXPRESION:i1 CORCHETE2 CORCHETE1 EXPRESION:i2 CORCHETE2 IGUAL EXPRESION:val
+                        {: RESULT = new AssignIndex2D((String)id, i1, i2, val, idleft, idright); :}
 ;
 
 SENTENCIA_IF ::= IF EXPRESION:cond BLOQUE:b
@@ -302,11 +310,11 @@ TIPO ::= INT     {: RESULT = "int"; :}
        | STRING  {: RESULT = "string"; :}
        | BOOL    {: RESULT = "bool"; :}
        | RUNE    {: RESULT = "rune"; :}
-       | CORCHETE1 CORCHETE2 INT     {: RESULT = "SLICE_INT"; :}
-       | CORCHETE1 CORCHETE2 FLOAT64 {: RESULT = "SLICE_FLOAT64"; :}
-       | CORCHETE1 CORCHETE2 STRING  {: RESULT = "SLICE_STRING"; :}
-       | CORCHETE1 CORCHETE2 BOOL    {: RESULT = "SLICE_BOOL"; :}
-       | CORCHETE1 CORCHETE2 RUNE    {: RESULT = "SLICE_RUNE"; :}
+       | CORCHETE1 CORCHETE2 TIPO:t 
+        {:
+         String inner = (String)t;
+         RESULT = "SLICE_" + inner.toUpperCase();
+        :}
 ;
 
 EXPRESION ::= EXPRESION:izq OR EXPRESION:der
@@ -363,6 +371,8 @@ EXPRESION ::= EXPRESION:izq OR EXPRESION:der
               {: RESULT = new Len(e, lkleft, lkright); :}
             | APPEND:ak PAR1 EXPRESION:s COMA LISTA_EXPRESIONES:elems PAR2
               {: RESULT = new Append(s, (List<NodoAST>)elems, akleft, akright); :}
+            | IDENTIFICADOR:id CORCHETE1 EXPRESION:i1 CORCHETE2 CORCHETE1 EXPRESION:i2 CORCHETE2
+              {: RESULT = new IndexAccess(new IndexAccess(new Identificador((String)id, idleft, idright), i1, idleft, idright), i2, idleft, idright); :}
             | IDENTIFICADOR:id CORCHETE1 EXPRESION:idx CORCHETE2
               {: RESULT = new IndexAccess(new Identificador((String)id, idleft, idright), idx, idleft, idright); :}
             | CORCHETE1 CORCHETE2 TIPO:t LLAVE1 LISTA_EXPRESIONES:elems LLAVE2
@@ -377,4 +387,32 @@ EXPRESION ::= EXPRESION:izq OR EXPRESION:der
                 String elemType = st.startsWith("SLICE_") ? st.substring(6).toLowerCase() : st;
                 RESULT = new SliceLiteral(elemType, new ArrayList<>(), tleft, tright);
               :}
+            | CORCHETE1 CORCHETE2 TIPO:t LLAVE1 FILAS_2D:filas LLAVE2
+              {:
+                String st = (String)t;
+                String baseType = st;
+                while (baseType.startsWith("SLICE_")) baseType = baseType.substring(6);
+                RESULT = new SliceLiteral2D(baseType.toLowerCase(), (List<List<NodoAST>>)filas, tleft, tright);
+              :}
+;
+
+FILAS_2D ::= FILAS_2D:list COMA FILA_2D:fila
+             {:
+               ((List<List<NodoAST>>)list).add((List<NodoAST>)fila);
+               RESULT = list;
+             :}
+           | FILAS_2D:list COMA
+             {:
+               RESULT = list;
+             :}
+           | FILA_2D:fila
+             {:
+               List<List<NodoAST>> l = new ArrayList<>();
+               l.add((List<NodoAST>)fila);
+               RESULT = l;
+             :}
+;
+
+FILA_2D ::= LLAVE1 LISTA_EXPRESIONES:elems LLAVE2
+            {: RESULT = elems; :}
 ;
