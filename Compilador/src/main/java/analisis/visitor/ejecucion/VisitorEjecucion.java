@@ -6,6 +6,8 @@ import analisis.ast.stm.*;
 import analisis.visitor.Visitor;
 import analisis.visitor.ejecucion.valor.*;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 public class VisitorEjecucion implements Visitor<Valor> {
 
@@ -21,6 +23,10 @@ public class VisitorEjecucion implements Visitor<Valor> {
 
     @Override
     public Valor visit(Programa.Context ctx) {
+        // Registrar structs en el gestor de ambitos
+        for (StructDef sd : ctx.structDefs) {
+            sd.accept(this);
+        }
         for (NodoAST instr : ctx.instrucciones) {
             instr.accept(this);
         }
@@ -501,6 +507,50 @@ public class VisitorEjecucion implements Visitor<Valor> {
         outerElems.set(i1, new ValorSlice(innerElems, inner.tipoElemento(), ctx.linea, ctx.columna));
         gestor.asignar(ctx.id, new ValorSlice(outerElems, vs.tipoElemento(), ctx.linea, ctx.columna), ctx.linea);
         return defaultVoid;
+    }
+
+    @Override
+    public Valor visit(StructDef.Context ctx) {
+        // Los structs se registran en la tabla de simbolos (semantico),
+        // en ejecucion no necesitan accion
+        return defaultVoid;
+    }
+
+    @Override
+    public Valor visit(StructAccess.Context ctx) {
+        Valor structVal = gestor.buscar(ctx.structId, ctx.linea);
+        if (!(structVal instanceof ValorStruct vs)) {
+            throw new RuntimeException("Linea " + ctx.linea + ": '" + ctx.structId + "' no es un struct");
+        }
+        Valor campo = vs.campos().get(ctx.campo);
+        if (campo == null) {
+            throw new RuntimeException("Linea " + ctx.linea + ": el struct no tiene campo '" + ctx.campo + "'");
+        }
+        return campo;
+    }
+
+    @Override
+    public Valor visit(StructAssign.Context ctx) {
+        Valor structVal = gestor.buscar(ctx.structId, ctx.linea);
+        if (!(structVal instanceof ValorStruct vs)) {
+            throw new RuntimeException("Linea " + ctx.linea + ": '" + ctx.structId + "' no es un struct");
+        }
+        Valor valVal = ctx.valor.accept(this);
+        Map<String, Valor> nuevosCampos = new HashMap<>(vs.campos());
+        nuevosCampos.put(ctx.campo, valVal);
+        ValorStruct nuevoStruct = new ValorStruct(nuevosCampos, vs.nombreTipo(), ctx.linea, ctx.columna);
+        gestor.asignar(ctx.structId, nuevoStruct, ctx.linea);
+        return defaultVoid;
+    }
+
+    @Override
+    public Valor visit(NewStruct.Context ctx) {
+        Map<String, Valor> campos = new HashMap<>();
+        for (NewStruct.CampoInit init : ctx.campos) {
+            Valor val = init.valor.accept(this);
+            campos.put(init.nombre, val);
+        }
+        return new ValorStruct(campos, ctx.nombreTipo.toUpperCase(), ctx.linea, ctx.columna);
     }
 
     @Override

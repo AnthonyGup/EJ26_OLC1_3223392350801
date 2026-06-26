@@ -80,7 +80,6 @@ newline    = [\n]
 
 <YYINITIAL> "func"        { return token(sym.FUNC, yytext(), "func", yyline, yycolumn); }
 <YYINITIAL> "main"        { return token(sym.MAIN, yytext(), "main", yyline, yycolumn); }
-<YYINITIAL> "var"         { return token(sym.VAR, yytext(), "var", yyline, yycolumn); }
 <YYINITIAL> "if"          { return token(sym.IF, yytext(), "if", yyline, yycolumn); }
 <YYINITIAL> "else"        { return token(sym.ELSE, yytext(), "else", yyline, yycolumn); }
 <YYINITIAL> "for"         { return token(sym.FOR, yytext(), "for", yyline, yycolumn); }
@@ -110,6 +109,7 @@ newline    = [\n]
 <YYINITIAL> "Join"        { return token(sym.JOIN, yytext(), "Join", yyline, yycolumn); }
 <YYINITIAL> "len"         { return token(sym.LEN, yytext(), "len", yyline, yycolumn); }
 <YYINITIAL> "append"      { return token(sym.APPEND, yytext(), "append", yyline, yycolumn); }
+<YYINITIAL> "struct"      { return token(sym.STRUCT, yytext(), "struct", yyline, yycolumn); }
 
 <YYINITIAL> "=="          { return token(sym.IGUALIGUAL, yytext(), "==", yyline, yycolumn); }
 <YYINITIAL> "!="          { return token(sym.DIFERENTE, yytext(), "!=", yyline, yycolumn); }

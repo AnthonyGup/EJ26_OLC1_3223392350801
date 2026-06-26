@@ -52,13 +52,14 @@ action code
 // ========== TERMINALES ==========
 
 terminal String CADENA, ENTERO, DECIMAL, IDENTIFICADOR, CHAR;
-terminal VAR, FUNC, MAIN, IF, ELSE, FOR, BREAK, CONTINUE;
+terminal FUNC, MAIN, IF, ELSE, FOR, BREAK, CONTINUE;
 terminal SWITCH, CASE, DEFAULT, DOSPUNTOS;
 terminal TRUE, FALSE, NIL;
 terminal INT, FLOAT64, STRING, BOOL, RUNE;
 terminal FMT, STRCONV, REFLECT, TYPEOF, ATOI, PARSEFLOAT, PRINTLN;
 terminal SLICES, INDEX;
 terminal STRINGS, JOIN;
+terminal STRUCT;
 terminal LEN;
 terminal APPEND;
 terminal MAS, MENOS, MULT, DIV, MOD, MASMAS, MENOSMENOS;
@@ -95,6 +96,15 @@ nonterminal List LISTA_EXPRESIONES;
 nonterminal List LISTA_CASOS_SWITCH;
 nonterminal List FILAS_2D;
 nonterminal List FILA_2D;
+nonterminal List DECLARACIONES_PROGRAMA;
+nonterminal NodoAST STRUCT_DEF;
+nonterminal List CAMPOS;
+nonterminal Object CAMPO;
+nonterminal NodoAST STRUCT_ACCESS;
+nonterminal NodoAST STRUCT_ASSIGN;
+nonterminal NodoAST NEW_STRUCT;
+nonterminal List LISTA_CAMPOS_INIT;
+nonterminal Object CAMPO_INIT;
 
 // ========== PRECEDENCIA ==========
 
@@ -111,10 +121,22 @@ start with PROGRAMA;
 
 // ========== GRAMATICA ==========
 
-PROGRAMA ::= FUNC:f MAIN PAR1 PAR2 BLOQUE:b
-             {: RESULT = new Programa(((Bloque)b).instrucciones(), fleft, fright); :}
-           | INSTRUCCIONES:i
-             {: RESULT = new Programa((List<NodoAST>)i, ileft, iright); :}
+PROGRAMA ::= DECLARACIONES_PROGRAMA:defs FUNC:f MAIN PAR1 PAR2 BLOQUE:b
+              {: RESULT = new Programa((List<StructDef>)defs, ((Bloque)b).instrucciones(), fleft, fright); :}
+            | DECLARACIONES_PROGRAMA:defs INSTRUCCIONES:i
+              {: RESULT = new Programa((List<StructDef>)defs, (List<NodoAST>)i, ileft, iright); :}
+;
+
+DECLARACIONES_PROGRAMA ::= DECLARACIONES_PROGRAMA:list STRUCT_DEF:d
+                            {:
+                              List<StructDef> l = (List<StructDef>)list;
+                              l.add((StructDef)d);
+                              RESULT = l;
+                            :}
+                          | 
+                            {:
+                              RESULT = new ArrayList<StructDef>();
+                            :}
 ;
 
 BLOQUE ::= LLAVE1:ll LLAVE2
@@ -148,6 +170,7 @@ INSTRUCCION ::= DECLARACION_VAR:d      {: RESULT = d; :}
               | ASIGNACION_INDEX:d     {: RESULT = d; :}
               | ASIGNACION_INDEX_2D:d  {: RESULT = d; :}
               | ASIGNACION_OP:d        {: RESULT = d; :}
+              | STRUCT_ASSIGN:d        {: RESULT = d; :}
               | IDENTIFICADOR:id MASMAS
                 {: 
                   NodoAST uno = new Literal("1", "int", idleft, idright);
@@ -169,10 +192,15 @@ INSTRUCCION ::= DECLARACION_VAR:d      {: RESULT = d; :}
               | error PTOCOMA      {: RESULT = null; :}
 ;
 
-DECLARACION_VAR ::= VAR IDENTIFICADOR:id TIPO:t IGUAL EXPRESION:e
+DECLARACION_VAR ::= TIPO:t IDENTIFICADOR:id IGUAL EXPRESION:e
                     {: RESULT = new DeclaracionVar((String)id, (String)t, e, idleft, idright); :}
-                  | VAR IDENTIFICADOR:id TIPO:t
-                    {: RESULT = new DeclaracionVar((String)id, (String)t, idleft, idright); :}
+                  | TIPO:t IDENTIFICADOR:id IGUAL LLAVE1 LISTA_CAMPOS_INIT:campos LLAVE2
+                    {: 
+                      String tipoStr = (String)t;
+                      String structName = tipoStr.startsWith("STRUCT_") ? tipoStr.substring(7) : "";
+                      NewStruct ns = new NewStruct(structName, (List<NewStruct.CampoInit>)campos, tleft, tright);
+                      RESULT = new DeclaracionVar((String)id, tipoStr, ns, idleft, idright);
+                    :}
                   | IDENTIFICADOR:id DOSPUNTOSIGUAL EXPRESION:e
                     {: RESULT = new DeclaracionVar((String)id, e, idleft, idright); :}
 ;
@@ -310,6 +338,8 @@ TIPO ::= INT     {: RESULT = "int"; :}
        | STRING  {: RESULT = "string"; :}
        | BOOL    {: RESULT = "bool"; :}
        | RUNE    {: RESULT = "rune"; :}
+       | IDENTIFICADOR:id
+         {: RESULT = "STRUCT_" + ((String)id).toUpperCase(); :}
        | CORCHETE1 CORCHETE2 TIPO:t 
         {:
          String inner = (String)t;
@@ -369,6 +399,10 @@ EXPRESION ::= EXPRESION:izq OR EXPRESION:der
               {: RESULT = fn; :}
             | LEN:lk PAR1 EXPRESION:e PAR2
               {: RESULT = new Len(e, lkleft, lkright); :}
+            | STRUCT_ACCESS:sa
+              {: RESULT = sa; :}
+            | NEW_STRUCT:ns
+              {: RESULT = ns; :}
             | APPEND:ak PAR1 EXPRESION:s COMA LISTA_EXPRESIONES:elems PAR2
               {: RESULT = new Append(s, (List<NodoAST>)elems, akleft, akright); :}
             | IDENTIFICADOR:id CORCHETE1 EXPRESION:i1 CORCHETE2 CORCHETE1 EXPRESION:i2 CORCHETE2
@@ -415,4 +449,60 @@ FILAS_2D ::= FILAS_2D:list COMA FILA_2D:fila
 
 FILA_2D ::= LLAVE1 LISTA_EXPRESIONES:elems LLAVE2
             {: RESULT = elems; :}
+;
+
+STRUCT_DEF ::= STRUCT IDENTIFICADOR:id LLAVE1 CAMPOS:campos LLAVE2
+               {: RESULT = new StructDef(((String)id).toUpperCase(), (List<StructDef.Campo>)campos, idleft, idright); :}
+;
+
+CAMPOS ::= CAMPOS:list CAMPO:c
+           {:
+             ((List<StructDef.Campo>)list).add((StructDef.Campo)c);
+             RESULT = list;
+           :}
+         | CAMPOS:list FIN_LINEA
+           {: RESULT = list; :}
+         | CAMPOS:list PTOCOMA
+           {: RESULT = list; :}
+         | CAMPO:c
+           {:
+             List<StructDef.Campo> l = new ArrayList<>();
+             l.add((StructDef.Campo)c);
+             RESULT = l;
+           :}
+;
+
+CAMPO ::= TIPO:t IDENTIFICADOR:id
+          {: RESULT = new StructDef.Campo((String)id, (String)t); :}
+;
+
+STRUCT_ACCESS ::= IDENTIFICADOR:obj PUNTO IDENTIFICADOR:campo
+                  {: RESULT = new StructAccess((String)obj, (String)campo, objleft, objright); :}
+;
+
+STRUCT_ASSIGN ::= IDENTIFICADOR:obj PUNTO IDENTIFICADOR:campo IGUAL EXPRESION:val
+                  {: RESULT = new StructAssign((String)obj, (String)campo, val, objleft, objright); :}
+;
+
+NEW_STRUCT ::= IDENTIFICADOR:t LLAVE1 LISTA_CAMPOS_INIT:campos LLAVE2
+               {: RESULT = new NewStruct((String)t, (List<NewStruct.CampoInit>)campos, tleft, tright); :}
+             | IDENTIFICADOR:t LLAVE1 LLAVE2
+               {: RESULT = new NewStruct((String)t, new ArrayList<>(), tleft, tright); :}
+;
+
+LISTA_CAMPOS_INIT ::= LISTA_CAMPOS_INIT:list COMA CAMPO_INIT:c
+                      {:
+                        ((List<NewStruct.CampoInit>)list).add((NewStruct.CampoInit)c);
+                        RESULT = list;
+                      :}
+                    | CAMPO_INIT:c
+                      {:
+                        List<NewStruct.CampoInit> l = new ArrayList<>();
+                        l.add((NewStruct.CampoInit)c);
+                        RESULT = l;
+                      :}
+;
+
+CAMPO_INIT ::= IDENTIFICADOR:n DOSPUNTOS EXPRESION:e
+               {: RESULT = new NewStruct.CampoInit((String)n, e); :}
 ;

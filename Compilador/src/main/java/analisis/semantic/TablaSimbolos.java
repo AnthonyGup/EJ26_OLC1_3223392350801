@@ -1,13 +1,16 @@
 package analisis.semantic;
 
+import analisis.ast.stm.StructDef;
 import java.util.*;
 
 public class TablaSimbolos {
     private final Deque<Map<String, Simbolo>> pila;
+    private final Map<String, List<StructDef.Campo>> structs;
 
     public TablaSimbolos() {
         pila = new ArrayDeque<>();
         pila.push(new HashMap<>());
+        structs = new HashMap<>();
     }
 
     public void nuevoAmbito() {
@@ -51,5 +54,17 @@ public class TablaSimbolos {
             todos.addAll(ambito.values());
         }
         return todos;
+    }
+
+    public void definirStruct(String nombre, List<StructDef.Campo> campos) {
+        structs.put(nombre, campos);
+    }
+
+    public List<StructDef.Campo> buscarStruct(String nombre) {
+        return structs.get(nombre);
+    }
+
+    public boolean existeStruct(String nombre) {
+        return structs.containsKey(nombre);
     }
 }

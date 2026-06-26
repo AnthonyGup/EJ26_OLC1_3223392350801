@@ -16,7 +16,9 @@ public enum TipoDato {
     SLICE_SLICE_FLOAT64(null),
     SLICE_SLICE_STRING(null),
     SLICE_SLICE_BOOL(null),
-    SLICE_SLICE_RUNE(null);
+    SLICE_SLICE_RUNE(null),
+    STRUCT(null),
+    SLICE_STRUCT(null);
 
     private Object valorDefecto;
 

@@ -7,6 +7,7 @@ public class Simbolo {
     public int linea;
     public int columna;
     public String ambito;
+    public String structType;
 
     public Simbolo(String id, TipoDato tipo, Object valor, int linea, int columna, String ambito) {
         this.id = id;
@@ -19,5 +20,15 @@ public class Simbolo {
 
     public Simbolo(String id, TipoDato tipo, int linea, int columna, String ambito) {
         this(id, tipo, null, linea, columna, ambito);
+    }
+
+    public Simbolo(String id, TipoDato tipo, String structType, int linea, int columna, String ambito) {
+        this.id = id;
+        this.tipo = tipo;
+        this.valor = null;
+        this.linea = linea;
+        this.columna = columna;
+        this.ambito = ambito;
+        this.structType = structType;
     }
 }

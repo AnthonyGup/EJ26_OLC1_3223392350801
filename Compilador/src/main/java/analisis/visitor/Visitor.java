@@ -27,4 +27,8 @@ public interface Visitor<T> {
     T visit(AssignIndex.Context ctx);
     T visit(SliceLiteral2D.Context ctx);
     T visit(AssignIndex2D.Context ctx);
+    T visit(StructDef.Context ctx);
+    T visit(StructAccess.Context ctx);
+    T visit(StructAssign.Context ctx);
+    T visit(NewStruct.Context ctx);
 }
