@@ -88,6 +88,8 @@ nonterminal NodoAST SENTENCIA_CONTINUE;
 nonterminal Object CASO_SWITCH;
 nonterminal NodoAST SWITCH_DEFAULT;
 nonterminal NodoAST LLAMADA_FUNCION;
+nonterminal NodoAST ASIGNACION;
+nonterminal NodoAST LLAMADA;
 nonterminal NodoAST EXPRESION;
 nonterminal String TIPO;
 nonterminal List LISTA_EXPRESIONES;
@@ -202,39 +204,9 @@ INSTRUCCIONES ::= INSTRUCCIONES:list FIN_LINEA
                   :}
 ;
 
-INSTRUCCION ::= DECLARACION_VAR:d      {: RESULT = d; :}
-              | ACCESO:a IGUAL EXPRESION:e
-                {:
-                  if (a instanceof Identificador) {
-                    RESULT = new Asignacion(((Identificador)a).getNombre(), e, aleft, aright);
-                  } else if (a instanceof IndexAccess) {
-                    IndexAccess ia = (IndexAccess)a;
-                    NodoAST base = ia.getBase();
-                    if (base instanceof Identificador) {
-                      RESULT = new AssignIndex(((Identificador)base).getNombre(), ia.getIndice(), e, aleft, aright);
-                    } else if (base instanceof IndexAccess) {
-                      IndexAccess ib = (IndexAccess)base;
-                      if (ib.getBase() instanceof Identificador) {
-                        RESULT = new AssignIndex2D(((Identificador)ib.getBase()).getNombre(), ib.getIndice(), ia.getIndice(), e, aleft, aright);
-                      }
-                    }
-                  } else if (a instanceof StructAccess) {
-                    StructAccess sa = (StructAccess)a;
-                    RESULT = new StructAssign(sa.getStructId(), sa.getCampo(), e, aleft, aright);
-                  }
-                :}
-              | ACCESO:a MASIGUAL EXPRESION:e
-                {:
-                  if (a instanceof Identificador) {
-                    RESULT = new AsignacionOp(((Identificador)a).getNombre(), "+=", e, aleft, aright);
-                  }
-                :}
-              | ACCESO:a MENOSIGUAL EXPRESION:e
-                {:
-                  if (a instanceof Identificador) {
-                    RESULT = new AsignacionOp(((Identificador)a).getNombre(), "-=", e, aleft, aright);
-                  }
-                :}
+INSTRUCCION ::= DECLARACION_VAR:d {: RESULT = d; :}
+              | ASIGNACION:a      {: RESULT = a; :}
+              | LLAMADA:l         {: RESULT = l; :}
               | IDENTIFICADOR:id MASMAS
                 {: 
                   NodoAST uno = new Literal("1", "int", idleft, idright);
@@ -252,9 +224,52 @@ INSTRUCCION ::= DECLARACION_VAR:d      {: RESULT = d; :}
               | SENTENCIA_CONTINUE:d {: RESULT = d; :}
               | BLOQUE:d           {: RESULT = d; :}
               | RETURN_STMT:d      {: RESULT = d; :}
-              | EXPRESION:e        {: RESULT = e; :}
               | error FIN_LINEA     {: RESULT = null; :}
               | error PTOCOMA      {: RESULT = null; :}
+;
+
+ASIGNACION ::= ACCESO:a IGUAL EXPRESION:e
+               {:
+                 if (a instanceof Identificador) {
+                   RESULT = new Asignacion(((Identificador)a).getNombre(), e, aleft, aright);
+                 } else if (a instanceof IndexAccess) {
+                   IndexAccess ia = (IndexAccess)a;
+                   NodoAST base = ia.getBase();
+                   if (base instanceof Identificador) {
+                     RESULT = new AssignIndex(((Identificador)base).getNombre(), ia.getIndice(), e, aleft, aright);
+                   } else if (base instanceof IndexAccess) {
+                     IndexAccess ib = (IndexAccess)base;
+                     if (ib.getBase() instanceof Identificador) {
+                       RESULT = new AssignIndex2D(((Identificador)ib.getBase()).getNombre(), ib.getIndice(), ia.getIndice(), e, aleft, aright);
+                     }
+                   }
+                 } else if (a instanceof StructAccess) {
+                   StructAccess sa = (StructAccess)a;
+                   RESULT = new StructAssign(sa.getStructId(), sa.getCampo(), e, aleft, aright);
+                 }
+               :}
+             | ACCESO:a MASIGUAL EXPRESION:e
+               {:
+                 if (a instanceof Identificador) {
+                   RESULT = new AsignacionOp(((Identificador)a).getNombre(), "+=", e, aleft, aright);
+                 }
+               :}
+             | ACCESO:a MENOSIGUAL EXPRESION:e
+               {:
+                 if (a instanceof Identificador) {
+                   RESULT = new AsignacionOp(((Identificador)a).getNombre(), "-=", e, aleft, aright);
+                 }
+               :}
+;
+
+LLAMADA ::= IDENTIFICADOR:id PAR1 LISTA_EXPRESIONES:args PAR2
+            {: RESULT = new FuncCall((String)id, (List<NodoAST>)args, idleft, idright); :}
+          | IDENTIFICADOR:id PAR1 PAR2
+            {: RESULT = new FuncCall((String)id, new ArrayList<>(), idleft, idright); :}
+          | LLAMADA_FUNCION:fn
+            {: RESULT = fn; :}
+          | STRUCT_METHOD_CALL:smc
+            {: RESULT = smc; :}
 ;
 
 DECLARACION_VAR ::= TIPO:t IDENTIFICADOR:id IGUAL EXPRESION:e
@@ -265,6 +280,14 @@ DECLARACION_VAR ::= TIPO:t IDENTIFICADOR:id IGUAL EXPRESION:e
                       String structName = tipoStr.startsWith("STRUCT_") ? tipoStr.substring(7) : "";
                       NewStruct ns = new NewStruct(structName, (List<NewStruct.CampoInit>)campos, tleft, tright);
                       RESULT = new DeclaracionVar((String)id, tipoStr, ns, idleft, idright);
+                    :}
+                  | IDENTIFICADOR:t IDENTIFICADOR:id IGUAL EXPRESION:e
+                    {: RESULT = new DeclaracionVar((String)id, "STRUCT_" + ((String)t).toUpperCase(), e, idleft, idright); :}
+                  | IDENTIFICADOR:t IDENTIFICADOR:id IGUAL LLAVE1 LISTA_CAMPOS_INIT:campos LLAVE2
+                    {:
+                      String structName = ((String)t).toUpperCase();
+                      NewStruct ns = new NewStruct(structName, (List<NewStruct.CampoInit>)campos, tleft, tright);
+                      RESULT = new DeclaracionVar((String)id, "STRUCT_" + structName, ns, idleft, idright);
                     :}
                   | IDENTIFICADOR:id DOSPUNTOSIGUAL EXPRESION:e
                     {: RESULT = new DeclaracionVar((String)id, e, idleft, idright); :}
@@ -385,8 +408,6 @@ TIPO ::= INT     {: RESULT = "int"; :}
        | STRING  {: RESULT = "string"; :}
        | BOOL    {: RESULT = "bool"; :}
        | RUNE    {: RESULT = "rune"; :}
-       | IDENTIFICADOR:id
-         {: RESULT = "STRUCT_" + ((String)id).toUpperCase(); :}
        | CORCHETE1 CORCHETE2 TIPO:t 
         {:
          String inner = (String)t;
@@ -464,11 +485,19 @@ EXPRESION ::= EXPRESION:izq OR EXPRESION:der
                 String elemType = st.startsWith("SLICE_") ? st.substring(6).toLowerCase() : st;
                 RESULT = new SliceLiteral(elemType, (List<NodoAST>)elems, tleft, tright);
               :}
+            | CORCHETE1 CORCHETE2 IDENTIFICADOR:t LLAVE1 LISTA_EXPRESIONES:elems LLAVE2
+              {: 
+                RESULT = new SliceLiteral(((String)t).toLowerCase(), (List<NodoAST>)elems, tleft, tright);
+              :}
             | CORCHETE1 CORCHETE2 TIPO:t LLAVE1 LLAVE2
               {:
                 String st = (String)t;
                 String elemType = st.startsWith("SLICE_") ? st.substring(6).toLowerCase() : st;
                 RESULT = new SliceLiteral(elemType, new ArrayList<>(), tleft, tright);
+              :}
+            | CORCHETE1 CORCHETE2 IDENTIFICADOR:t LLAVE1 LLAVE2
+              {:
+                RESULT = new SliceLiteral(((String)t).toLowerCase(), new ArrayList<>(), tleft, tright);
               :}
             | CORCHETE1 CORCHETE2 TIPO:t LLAVE1 FILAS_2D:filas LLAVE2
               {:
@@ -476,6 +505,10 @@ EXPRESION ::= EXPRESION:izq OR EXPRESION:der
                 String baseType = st;
                 while (baseType.startsWith("SLICE_")) baseType = baseType.substring(6);
                 RESULT = new SliceLiteral2D(baseType.toLowerCase(), (List<List<NodoAST>>)filas, tleft, tright);
+              :}
+            | CORCHETE1 CORCHETE2 IDENTIFICADOR:t LLAVE1 FILAS_2D:filas LLAVE2
+              {:
+                RESULT = new SliceLiteral2D(((String)t).toLowerCase(), (List<List<NodoAST>>)filas, tleft, tright);
               :}
 ;
 
@@ -523,6 +556,8 @@ CAMPOS ::= CAMPOS:list CAMPO:c
 
 CAMPO ::= TIPO:t IDENTIFICADOR:id
           {: RESULT = new StructDef.Campo((String)id, (String)t); :}
+        | IDENTIFICADOR:t IDENTIFICADOR:id
+          {: RESULT = new StructDef.Campo((String)id, "STRUCT_" + ((String)t).toUpperCase()); :}
 ;
 
 ACCESO ::= IDENTIFICADOR:id
@@ -560,6 +595,8 @@ CAMPO_INIT ::= IDENTIFICADOR:n DOSPUNTOS EXPRESION:e
 
 PARAM ::= IDENTIFICADOR:n TIPO:t
           {: RESULT = new Parametro((String)n, (String)t, nleft, nright); :}
+        | IDENTIFICADOR:n IDENTIFICADOR:t
+          {: RESULT = new Parametro((String)n, "STRUCT_" + ((String)t).toUpperCase(), nleft, nright); :}
 ;
 
 PARAMS ::= PARAMS:list COMA PARAM:p
@@ -580,6 +617,8 @@ PARAMS ::= PARAMS:list COMA PARAM:p
 ;
 
 TIPO_OPCIONAL ::= TIPO:t {: RESULT = t; :}
+                | IDENTIFICADOR:t
+                  {: RESULT = "STRUCT_" + ((String)t).toUpperCase(); :}
                 | {: RESULT = null; :}
 ;
 
