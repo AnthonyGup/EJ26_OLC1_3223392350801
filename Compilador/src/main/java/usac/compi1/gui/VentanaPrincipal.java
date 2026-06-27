@@ -5,6 +5,9 @@ import analisis.parser;
 import analisis.ast.Programa;
 import analisis.visitor.VisitorSemantico;
 import analisis.visitor.ejecucion.VisitorEjecucion;
+import analisis.visitor.grafico.VisitorGrafico;
+import guru.nidi.graphviz.engine.Format;
+import guru.nidi.graphviz.engine.Graphviz;
 import usac.compi1.gui.reports.GoliteError;
 import usac.compi1.gui.reports.ReporteDialog;
 import usac.compi1.gui.reports.TokenInfo;
@@ -13,6 +16,7 @@ import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.List;
 import java.util.ArrayList;
@@ -24,6 +28,7 @@ public class VentanaPrincipal extends JFrame {
     private File archivoActual;
     private Lexer lexer;
     private parser parser;
+    private Programa programa;
     private List<String> erroresSemanticos;
 
     public VentanaPrincipal() {
@@ -82,6 +87,10 @@ public class VentanaPrincipal extends JFrame {
         JButton btnEjecutar = crearBotonMenu("Ejecutar");
         btnEjecutar.addActionListener(e -> run());
         bar.add(btnEjecutar);
+
+        JButton btnAST = crearBotonMenu("Ver AST");
+        btnAST.addActionListener(e -> mostrarAST());
+        bar.add(btnAST);
 
         JMenu reportes = new JMenu("Reportes");
         JMenuItem rptTokens = new JMenuItem("Reporte de tokens");
@@ -182,7 +191,7 @@ public class VentanaPrincipal extends JFrame {
             lexer = new Lexer(new StringReader(codigo));
             parser = new parser(lexer);
             Symbol resultado = parser.parse();
-            Programa programa = (Programa) resultado.value;
+            programa = (Programa) resultado.value;
 
             VisitorSemantico semantico = new VisitorSemantico();
             programa.accept(semantico);
@@ -222,6 +231,70 @@ public class VentanaPrincipal extends JFrame {
             }
         }
     }
+
+    private void mostrarAST() {
+        if (programa == null) {
+            JOptionPane.showMessageDialog(this, "Ejecuta el codigo primero.");
+            return;
+        }
+
+        VisitorGrafico grafico = new VisitorGrafico();
+        programa.accept(grafico);
+        String dot = grafico.getDot();
+
+        try {
+            BufferedImage img = Graphviz.fromString(dot)
+                    .width(1200)
+                    .render(Format.PNG)
+                    .toImage();
+
+            JPanel panel = new JPanel() {
+                private double escala = 1.0;
+                @Override
+                protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    Graphics2D g2 = (Graphics2D) g;
+                    g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                            RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                    int w = (int) (img.getWidth() * escala);
+                    int h = (int) (img.getHeight() * escala);
+                    g2.drawImage(img, 0, 0, w, h, null);
+                }
+                @Override
+                protected void processMouseWheelEvent(MouseWheelEvent e) {
+                    if (e.isControlDown()) {
+                        escala *= e.getWheelRotation() < 0 ? 1.15 : 1 / 1.15;
+                        escala = Math.max(0.05, Math.min(20, escala));
+                        setPreferredSize(new Dimension(
+                                (int) (img.getWidth() * escala),
+                                (int) (img.getHeight() * escala)));
+                        revalidate();
+                        repaint();
+                        e.consume();
+                    } else {
+                        super.processMouseWheelEvent(e);
+                    }
+                }
+            };
+            panel.setPreferredSize(new Dimension(img.getWidth(), img.getHeight()));
+
+            JScrollPane scroll = new JScrollPane(panel);
+            JFrame frame = new JFrame("Arbol AST");
+            frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            frame.add(scroll);
+            frame.setSize(1000, 700);
+            frame.setLocationRelativeTo(this);
+            frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
+            frame.setVisible(true);
+
+            consola.append("AST generado correctamente.\n");
+        } catch (Exception e) {
+            consola.append("Error al generar AST: " + e.getMessage() + "\n");
+            e.printStackTrace();
+        }
+    }
+
+
 
     private void mostrarTokens() {
         if (lexer == null) {

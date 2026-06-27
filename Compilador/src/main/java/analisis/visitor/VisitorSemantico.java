@@ -1,48 +1,28 @@
 package analisis.visitor;
 
 import analisis.ast.*;
-import analisis.ast.exp.ExpBinaria;
-import analisis.ast.exp.ExpUnaria;
-import analisis.ast.exp.Identificador;
-import analisis.ast.exp.Literal;
-import analisis.ast.exp.SliceLiteral;
-import analisis.ast.exp.Len;
-import analisis.ast.exp.Append;
-import analisis.ast.exp.IndexAccess;
-import analisis.ast.exp.SliceLiteral2D;
-import analisis.ast.exp.StructAccess;
-import analisis.ast.exp.NewStruct;
-import analisis.ast.stm.AssignIndex;
-import analisis.ast.stm.AssignIndex2D;
-import analisis.ast.stm.Asignacion;
-import analisis.ast.stm.AsignacionOp;
-import analisis.ast.stm.Break;
-import analisis.ast.stm.Continue;
-import analisis.ast.stm.DeclaracionVar;
-import analisis.ast.stm.For;
-import analisis.ast.stm.If;
-import analisis.ast.stm.LlamadaFuncion;
-import analisis.ast.stm.StructAssign;
-import analisis.ast.stm.StructDef;
-import analisis.ast.stm.Switch;
-import analisis.semantic.Simbolo;
-import analisis.semantic.TablaSimbolos;
-import analisis.semantic.TipoDato;
+import analisis.ast.exp.*;
+import analisis.ast.stm.*;
+import analisis.semantic.*;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class VisitorSemantico implements Visitor<Void> {
 
     private TablaSimbolos tabla;
     private List<String> errores;
+    private ValidacionSemantica validador;
     private boolean dentroDeFor;
     private boolean dentroDeSwitch;
-    private TipoDato tipoResultado; // Clave: guarda el tipo de la ultima expresion
-    private String tipoStructResultado; // Guarda el nombre del struct cuando tipoResultado es STRUCT
+    private TipoDato tipoResultado;
+    private String tipoStructResultado;
 
     public VisitorSemantico() {
         this.tabla = new TablaSimbolos();
         this.errores = new ArrayList<>();
+        this.validador = new ValidacionSemantica(tabla, errores);
         this.dentroDeFor = false;
         this.dentroDeSwitch = false;
     }
@@ -59,23 +39,16 @@ public class VisitorSemantico implements Visitor<Void> {
         errores.add("Linea " + linea + ": " + msg);
     }
 
-    private boolean esNumerico(TipoDato t) {
-        return t == TipoDato.INT || t == TipoDato.FLOAT64;
-    }
-
-    // INT + FLOAT64 a FLOAT64...
-    private TipoDato promover(TipoDato a, TipoDato b) {
-        if (a == TipoDato.FLOAT64 || b == TipoDato.FLOAT64) {
-            return TipoDato.FLOAT64;
-        }
-        return TipoDato.INT;
-    }
-
     @Override
     public Void visit(Programa.Context ctx) {
-        // Registrar structs primero (ambito global)
         for (StructDef sd : ctx.structDefs) {
             sd.accept(this);
+        }
+        for (StructMethodDef md : ctx.structMethods) {
+            md.accept(this);
+        }
+        for (FuncDef fd : ctx.funcDefs) {
+            fd.accept(this);
         }
         for (NodoAST instr : ctx.instrucciones) {
             instr.accept(this);
@@ -107,16 +80,9 @@ public class VisitorSemantico implements Visitor<Void> {
         String structType = null;
 
         if (ctx.tipo != null) {
-            String tipoStr = ctx.tipo.toUpperCase();
-            if (tipoStr.startsWith("STRUCT_")) {
-                tipoDeclarado = TipoDato.STRUCT;
-                structType = ctx.tipo.substring(7);
-            } else if (tipoStr.startsWith("SLICE_STRUCT_")) {
-                tipoDeclarado = TipoDato.SLICE_STRUCT;
-                structType = ctx.tipo.substring(13);
-            } else {
-                tipoDeclarado = TipoDato.valueOf(tipoStr);
-            }
+            TipoUtils.TipoParseResult pr = TipoUtils.parseTipo(ctx.tipo);
+            tipoDeclarado = pr.tipo;
+            structType = pr.structType;
         }
 
         if (ctx.expr != null) {
@@ -128,7 +94,7 @@ public class VisitorSemantico implements Visitor<Void> {
                 if (tipoDeclarado == TipoDato.STRUCT) {
                     structType = this.tipoStructResultado;
                 }
-            } else if (!sonCompatibles(tipoDeclarado, tipoExpr, structType, this.tipoStructResultado)) {
+            } else if (!TipoUtils.sonCompatibles(tipoDeclarado, tipoExpr, structType, this.tipoStructResultado)) {
                 error(ctx.linea, "No se puede asignar un valor de tipo " + tipoExpr + " a variable de tipo " + tipoDeclarado);
                 return null;
             }
@@ -142,16 +108,13 @@ public class VisitorSemantico implements Visitor<Void> {
 
     @Override
     public Void visit(Asignacion.Context ctx) {
-        Simbolo s = tabla.buscar(ctx.id);
-        if (s == null) {
-            error(ctx.linea, "La variable '" + ctx.id + "' no ha sido declarada");
-            return null;
-        }
+        Simbolo s = validador.checkVariableExists(ctx.id, ctx.linea);
+        if (s == null) return null;
 
         ctx.expr.accept(this);
         TipoDato tipoExpr = this.tipoResultado;
 
-        if (!sonCompatibles(s.tipo, tipoExpr, s.structType, this.tipoStructResultado)) {
+        if (!TipoUtils.sonCompatibles(s.tipo, tipoExpr, s.structType, this.tipoStructResultado)) {
             error(ctx.linea, "No se puede asignar " + tipoExpr + " a variable de tipo " + s.tipo);
         }
 
@@ -160,21 +123,17 @@ public class VisitorSemantico implements Visitor<Void> {
 
     @Override
     public Void visit(AsignacionOp.Context ctx) {
-        Simbolo s = tabla.buscar(ctx.id);
-        if (s == null) {
-            error(ctx.linea, "La variable '" + ctx.id + "' no ha sido declarada");
-            return null;
-        }
+        Simbolo s = validador.checkVariableExists(ctx.id, ctx.linea);
+        if (s == null) return null;
 
-        // += y -= solo para numéricos y string (solo += para string)
         ctx.expr.accept(this);
         TipoDato tipoExpr = this.tipoResultado;
 
         if (ctx.operador.equals("+=") && s.tipo == TipoDato.STRING && tipoExpr == TipoDato.STRING) {
-            return null; // string concatenation OK
+            return null;
         }
 
-        if (!esNumerico(s.tipo) || !esNumerico(tipoExpr)) {
+        if (!TipoUtils.esNumerico(s.tipo) || !TipoUtils.esNumerico(tipoExpr)) {
             error(ctx.linea, "Operador '" + ctx.operador + "' no válido para tipos " + s.tipo + " y " + tipoExpr);
         }
 
@@ -241,7 +200,7 @@ public class VisitorSemantico implements Visitor<Void> {
             for (Switch.Caso caso : ctx.casos) {
                 for (NodoAST expresionCaso : caso.expresiones) {
                     expresionCaso.accept(this);
-                    if (tipoSwitch != null && this.tipoResultado != null && !sonCompatibles(tipoSwitch, this.tipoResultado)) {
+                    if (tipoSwitch != null && this.tipoResultado != null && !TipoUtils.sonCompatibles(tipoSwitch, this.tipoResultado)) {
                         error(caso.linea, "La expresion del case debe ser compatible con el tipo del switch: " + tipoSwitch + " vs " + this.tipoResultado);
                     }
                 }
@@ -286,7 +245,6 @@ public class VisitorSemantico implements Visitor<Void> {
                 }
                 break;
             case "strconv":
-                // strconv.Atoi y ParseFloat reciben un string, devuelven INT o FLOAT64
                 if (ctx.argumentos.size() > 0) {
                     ctx.argumentos.get(0).accept(this);
                     if (this.tipoResultado != TipoDato.STRING) {
@@ -299,7 +257,6 @@ public class VisitorSemantico implements Visitor<Void> {
                 if (ctx.argumentos.size() > 0) {
                     ctx.argumentos.get(0).accept(this);
                 }
-                // reflect.TypeOf devuelve un String
                 tipoResultado = TipoDato.STRING;
                 break;
             case "slices":
@@ -310,12 +267,12 @@ public class VisitorSemantico implements Visitor<Void> {
                         ctx.argumentos.get(1).accept(this);
                         TipoDato tipoValor = this.tipoResultado;
 
-                        if (tipoSlice != null && !esTipoSlice(tipoSlice)) {
+                        if (tipoSlice != null && !TipoUtils.esTipoSlice(tipoSlice)) {
                             error(ctx.linea, "slices.Index: el primer argumento debe ser un slice");
                         } else if (tipoSlice != null && tipoValor != null) {
-                            String elemType = tipoElementoDeSlice(tipoSlice);
+                            String elemType = TipoUtils.tipoElementoDeSlice(tipoSlice);
                             TipoDato elemTipo = TipoDato.valueOf(elemType.toUpperCase());
-                            if (!sonCompatibles(elemTipo, tipoValor)) {
+                            if (!TipoUtils.sonCompatibles(elemTipo, tipoValor)) {
                                 error(ctx.linea, "slices.Index: el valor no es compatible con el tipo del slice (" + elemType + ")");
                             }
                         }
@@ -345,18 +302,6 @@ public class VisitorSemantico implements Visitor<Void> {
         return null;
     }
 
-    private boolean esTipoSlice(TipoDato t) {
-        return t.name().startsWith("SLICE_");
-    }
-
-    private String tipoElementoDeSlice(TipoDato t) {
-        String name = t.name();
-        if (name.startsWith("SLICE_")) {
-            return name.substring(6);
-        }
-        return null;
-    }
-
     @Override
     public Void visit(ExpBinaria.Context ctx) {
         ctx.izquierdo.accept(this);
@@ -369,7 +314,6 @@ public class VisitorSemantico implements Visitor<Void> {
             return null;
         }
 
-        // nil check
         if (izq == TipoDato.NIL || der == TipoDato.NIL) {
             error(ctx.linea, "No se puede realizar la operación con nil");
             tipoResultado = null;
@@ -379,9 +323,9 @@ public class VisitorSemantico implements Visitor<Void> {
         switch (ctx.operador) {
             case "+":
                 if (izq == TipoDato.STRING && der == TipoDato.STRING) {
-                    tipoResultado = TipoDato.STRING; // concatenación
-                } else if (esNumerico(izq) && esNumerico(der)) {
-                    tipoResultado = promover(izq, der);
+                    tipoResultado = TipoDato.STRING;
+                } else if (TipoUtils.esNumerico(izq) && TipoUtils.esNumerico(der)) {
+                    tipoResultado = TipoUtils.promover(izq, der);
                 } else {
                     error(ctx.linea, "Operador + no válido entre " + izq + " y " + der);
                     tipoResultado = null;
@@ -390,8 +334,8 @@ public class VisitorSemantico implements Visitor<Void> {
             case "-":
             case "*":
             case "/":
-                if (esNumerico(izq) && esNumerico(der)) {
-                    tipoResultado = promover(izq, der);
+                if (TipoUtils.esNumerico(izq) && TipoUtils.esNumerico(der)) {
+                    tipoResultado = TipoUtils.promover(izq, der);
                 } else {
                     error(ctx.linea, "Operador " + ctx.operador + " no válido entre " + izq + " y " + der);
                     tipoResultado = null;
@@ -407,7 +351,7 @@ public class VisitorSemantico implements Visitor<Void> {
                 break;
             case "==":
             case "!=":
-                if (izq == der || (esNumerico(izq) && esNumerico(der))) {
+                if (izq == der || (TipoUtils.esNumerico(izq) && TipoUtils.esNumerico(der))) {
                     tipoResultado = TipoDato.BOOL;
                 } else {
                     error(ctx.linea, "Comparación " + ctx.operador + " no válida entre " + izq + " y " + der);
@@ -418,7 +362,7 @@ public class VisitorSemantico implements Visitor<Void> {
             case ">=":
             case "<":
             case "<=":
-                if (esNumerico(izq) && esNumerico(der)) {
+                if (TipoUtils.esNumerico(izq) && TipoUtils.esNumerico(der)) {
                     tipoResultado = TipoDato.BOOL;
                 } else {
                     error(ctx.linea, "Comparación " + ctx.operador + " no válida entre " + izq + " y " + der);
@@ -444,7 +388,7 @@ public class VisitorSemantico implements Visitor<Void> {
         ctx.expr.accept(this);
 
         if (ctx.operador.equals("-")) {
-            if (!esNumerico(this.tipoResultado)) {
+            if (!TipoUtils.esNumerico(this.tipoResultado)) {
                 error(ctx.linea, "Negación unaria solo válida para tipos numéricos");
                 tipoResultado = null;
             }
@@ -504,15 +448,10 @@ public class VisitorSemantico implements Visitor<Void> {
         for (NodoAST elem : ctx.elementos) {
             elem.accept(this);
             if (this.tipoResultado == null) continue;
-            TipoDato tipoEsperado;
-            String structEsperado = null;
-            if (tipoElemUpper.startsWith("STRUCT_")) {
-                tipoEsperado = TipoDato.STRUCT;
-                structEsperado = tipoElemUpper.substring(7);
-            } else {
-                tipoEsperado = TipoDato.valueOf(tipoElemUpper);
-            }
-            if (!sonCompatibles(tipoEsperado, this.tipoResultado, structEsperado, this.tipoStructResultado)) {
+            TipoUtils.TipoParseResult pr = TipoUtils.parseTipo(tipoElem);
+            TipoDato tipoEsperado = pr.tipo;
+            String structEsperado = pr.structType;
+            if (!TipoUtils.sonCompatibles(tipoEsperado, this.tipoResultado, structEsperado, this.tipoStructResultado)) {
                 error(ctx.linea, "Elemento de tipo " + this.tipoResultado + " no compatible con slice de " + tipoElem);
             }
         }
@@ -537,7 +476,7 @@ public class VisitorSemantico implements Visitor<Void> {
         for (List<NodoAST> fila : ctx.filas) {
             for (NodoAST elem : fila) {
                 elem.accept(this);
-                if (this.tipoResultado != null && !sonCompatibles(tipoElem, this.tipoResultado)) {
+                if (this.tipoResultado != null && !TipoUtils.sonCompatibles(tipoElem, this.tipoResultado)) {
                     error(ctx.linea, "Elemento de tipo " + this.tipoResultado + " no compatible con matriz de " + tipoBase);
                 }
             }
@@ -550,7 +489,7 @@ public class VisitorSemantico implements Visitor<Void> {
     @Override
     public Void visit(Len.Context ctx) {
         ctx.expr.accept(this);
-        if (this.tipoResultado != null && !esTipoSlice(this.tipoResultado)) {
+        if (this.tipoResultado != null && !TipoUtils.esTipoSlice(this.tipoResultado)) {
             error(ctx.linea, "len solo es válido para slices");
             tipoResultado = null;
         } else if (this.tipoResultado != null) {
@@ -565,18 +504,18 @@ public class VisitorSemantico implements Visitor<Void> {
         TipoDato tipoSlice = this.tipoResultado;
 
         if (tipoSlice != null) {
-            if (!esTipoSlice(tipoSlice)) {
+            if (!TipoUtils.esTipoSlice(tipoSlice)) {
                 error(ctx.linea, "append: el primer argumento debe ser un slice");
                 tipoResultado = null;
                 return null;
             }
-            String elemType = tipoElementoDeSlice(tipoSlice);
+            String elemType = TipoUtils.tipoElementoDeSlice(tipoSlice);
             TipoDato elemTipo = TipoDato.valueOf(elemType.toUpperCase());
 
             for (NodoAST elem : ctx.elementos) {
                 elem.accept(this);
                 if (this.tipoResultado == null) continue;
-                if (!sonCompatibles(elemTipo, this.tipoResultado)) {
+                if (!TipoUtils.sonCompatibles(elemTipo, this.tipoResultado)) {
                     error(ctx.linea, "append: elemento de tipo " + this.tipoResultado + " no compatible con slice de " + elemType);
                 }
             }
@@ -599,19 +538,18 @@ public class VisitorSemantico implements Visitor<Void> {
             return null;
         }
 
-        if (!esTipoSlice(tipoBase)) {
+        if (!TipoUtils.esTipoSlice(tipoBase)) {
             error(ctx.linea, "El acceso por indice solo es valido para slices");
             tipoResultado = null;
             return null;
         }
 
-        if (tipoIndice != TipoDato.INT) {
-            error(ctx.linea, "El indice debe ser de tipo int");
+        if (!validador.checkIndexIsInt(tipoIndice, ctx.linea)) {
             tipoResultado = null;
             return null;
         }
 
-        String nombreElem = tipoElementoDeSlice(tipoBase);
+        String nombreElem = TipoUtils.tipoElementoDeSlice(tipoBase);
         String nombreElemUpper = nombreElem.toUpperCase();
         if (nombreElemUpper.startsWith("STRUCT_")) {
             tipoResultado = TipoDato.STRUCT;
@@ -630,9 +568,8 @@ public class VisitorSemantico implements Visitor<Void> {
 
     @Override
     public Void visit(AssignIndex.Context ctx) {
-        Simbolo s = tabla.buscar(ctx.id);
+        Simbolo s = validador.checkVariableExists(ctx.id, ctx.linea);
         if (s == null) {
-            error(ctx.linea, "Variable '" + ctx.id + "' no declarada");
             tipoResultado = null;
             return null;
         }
@@ -648,17 +585,14 @@ public class VisitorSemantico implements Visitor<Void> {
             return null;
         }
 
-        if (!esTipoSlice(tipoBase)) {
+        if (!TipoUtils.esTipoSlice(tipoBase)) {
             error(ctx.linea, "La asignacion por indice solo es valida para slices");
             return null;
         }
 
-        if (tipoIndice != TipoDato.INT) {
-            error(ctx.linea, "El indice debe ser de tipo int");
-            return null;
-        }
+        if (!validador.checkIndexIsInt(tipoIndice, ctx.linea)) return null;
 
-        String nombreElem = tipoElementoDeSlice(tipoBase);
+        String nombreElem = TipoUtils.tipoElementoDeSlice(tipoBase);
         String nombreElemUpper = nombreElem.toUpperCase();
         TipoDato tipoElem;
         String structTypeElem = null;
@@ -671,7 +605,7 @@ public class VisitorSemantico implements Visitor<Void> {
         } else {
             tipoElem = TipoDato.valueOf(nombreElemUpper);
         }
-        if (!sonCompatibles(tipoElem, tipoValor, structTypeElem, this.tipoStructResultado)) {
+        if (!TipoUtils.sonCompatibles(tipoElem, tipoValor, structTypeElem, this.tipoStructResultado)) {
             error(ctx.linea, "No se puede asignar un valor de tipo " + tipoValor + " a un elemento de tipo " + nombreElem);
         }
 
@@ -680,40 +614,33 @@ public class VisitorSemantico implements Visitor<Void> {
 
     @Override
     public Void visit(AssignIndex2D.Context ctx) {
-        Simbolo s = tabla.buscar(ctx.id);
+        Simbolo s = validador.checkVariableExists(ctx.id, ctx.linea);
         if (s == null) {
-            error(ctx.linea, "Variable '" + ctx.id + "' no declarada");
             tipoResultado = null;
             return null;
         }
         TipoDato tipoBase = s.tipo;
 
-        if (tipoBase == null || !esTipoSlice(tipoBase) || !tipoBase.name().startsWith("SLICE_SLICE_")) {
+        if (tipoBase == null || !TipoUtils.esTipoSlice(tipoBase) || !tipoBase.name().startsWith("SLICE_SLICE_")) {
             error(ctx.linea, "Acceso multidimensional solo valido para matrices ([][]T)");
             return null;
         }
 
         ctx.indice1.accept(this);
-        if (this.tipoResultado != TipoDato.INT) {
-            error(ctx.linea, "El indice debe ser de tipo int");
-            return null;
-        }
+        if (!validador.checkIndexIsInt(this.tipoResultado, ctx.linea)) return null;
 
         ctx.indice2.accept(this);
-        if (this.tipoResultado != TipoDato.INT) {
-            error(ctx.linea, "El indice debe ser de tipo int");
-            return null;
-        }
+        if (!validador.checkIndexIsInt(this.tipoResultado, ctx.linea)) return null;
 
         ctx.valor.accept(this);
         TipoDato tipoValor = this.tipoResultado;
 
-        String innerTypeName = tipoElementoDeSlice(tipoBase);
+        String innerTypeName = TipoUtils.tipoElementoDeSlice(tipoBase);
         TipoDato innerTipo = TipoDato.valueOf(innerTypeName);
-        String elemTypeName = tipoElementoDeSlice(innerTipo);
+        String elemTypeName = TipoUtils.tipoElementoDeSlice(innerTipo);
         TipoDato elemTipo = TipoDato.valueOf(elemTypeName);
 
-        if (!sonCompatibles(elemTipo, tipoValor)) {
+        if (!TipoUtils.sonCompatibles(elemTipo, tipoValor)) {
             error(ctx.linea, "No se puede asignar un valor de tipo " + tipoValor + " a un elemento de tipo " + elemTypeName.toLowerCase());
         }
 
@@ -722,9 +649,8 @@ public class VisitorSemantico implements Visitor<Void> {
 
     @Override
     public Void visit(Identificador.Context ctx) {
-        Simbolo s = tabla.buscar(ctx.nombre);
+        Simbolo s = validador.checkVariableExists(ctx.nombre, ctx.linea);
         if (s == null) {
-            error(ctx.linea, "Variable '" + ctx.nombre + "' no declarada");
             tipoResultado = null;
         } else {
             tipoResultado = s.tipo;
@@ -734,17 +660,11 @@ public class VisitorSemantico implements Visitor<Void> {
     
     @Override
     public Void visit(StructDef.Context ctx) {
-        // Validar que el struct solo se declare en ambito global
-        if (tabla.getNivelAmbito() > 0) {
-            error(ctx.linea, "Los structs solo pueden declararse en ambito global");
-            return null;
-        }
-        // Validar que no exista otro struct con el mismo nombre
+        if (!validador.checkGlobalScope(ctx.linea, "Los structs solo pueden declararse en ambito global")) return null;
         if (tabla.existeStruct(ctx.nombre)) {
             error(ctx.linea, "El struct '" + ctx.nombre + "' ya fue declarado");
             return null;
         }
-        // Validar campos
         for (StructDef.Campo campo : ctx.campos) {
             String tipoStr = campo.tipo.toUpperCase();
             if (tipoStr.startsWith("STRUCT_") || tipoStr.startsWith("SLICE_STRUCT_")) {
@@ -768,85 +688,97 @@ public class VisitorSemantico implements Visitor<Void> {
     }
 
     @Override
-    public Void visit(StructAccess.Context ctx) {
-        Simbolo s = tabla.buscar(ctx.structId);
-        if (s == null) {
-            error(ctx.linea, "Variable '" + ctx.structId + "' no declarada");
-            tipoResultado = null;
-            return null;
-        }
-        if (s.tipo != TipoDato.STRUCT) {
-            error(ctx.linea, "La variable '" + ctx.structId + "' no es un struct");
-            tipoResultado = null;
-            return null;
-        }
-        List<StructDef.Campo> campos = tabla.buscarStruct(s.structType);
-        if (campos == null) {
-            error(ctx.linea, "El tipo struct '" + s.structType + "' no esta definido");
-            tipoResultado = null;
-            return null;
-        }
-        boolean encontrado = false;
-        for (StructDef.Campo c : campos) {
-            if (c.nombre.equals(ctx.campo)) {
-                String tipoStr = c.tipo.toUpperCase();
-                if (tipoStr.startsWith("STRUCT_")) {
-                    tipoResultado = TipoDato.STRUCT;
-                } else if (tipoStr.startsWith("SLICE_STRUCT_")) {
-                    tipoResultado = TipoDato.SLICE_STRUCT;
-                } else if (tipoStr.startsWith("SLICE_")) {
-                    try {
-                        tipoResultado = TipoDato.valueOf(tipoStr);
-                    } catch (IllegalArgumentException e) {
-                        tipoResultado = null;
-                    }
-                } else {
-                    try {
-                        tipoResultado = TipoDato.valueOf(tipoStr);
-                    } catch (IllegalArgumentException e) {
-                        tipoResultado = null;
-                    }
-                }
-                encontrado = true;
-                break;
+    public Void visit(StructMethodDef.Context ctx) {
+        if (!validador.checkGlobalScope(ctx.linea, "Las funciones de struct solo pueden declararse en el ambito global")) return null;
+        String typeName = ctx.receiverType.toUpperCase();
+        if (!validador.checkStructExists(typeName, ctx.receiverType, ctx.linea)) return null;
+        Set<String> paramNames = new HashSet<>();
+        for (Parametro p : ctx.parametros) {
+            if (!paramNames.add(p.nombre.toUpperCase())) {
+                error(ctx.linea, "El parametro '" + p.nombre + "' esta duplicado en el metodo '" + ctx.nombre + "'");
+            }
+            if (p.nombre.equalsIgnoreCase(ctx.receiverVar)) {
+                error(ctx.linea, "El parametro '" + p.nombre + "' no puede tener el mismo nombre que el receptor del metodo");
             }
         }
-        if (!encontrado) {
-            error(ctx.linea, "El struct '" + s.structType + "' no tiene un campo llamado '" + ctx.campo + "'");
+        List<StructDef.Campo> campos = tabla.buscarStruct(typeName);
+        for (StructDef.Campo campo : campos) {
+            if (campo.nombre.equalsIgnoreCase(ctx.nombre)) {
+                error(ctx.linea, "El metodo '" + ctx.nombre + "' no puede tener el mismo nombre que un campo del struct '" + typeName + "'");
+                return null;
+            }
+        }
+        StructMethodDef existente = tabla.buscarMetodo(typeName, ctx.nombre);
+        if (existente != null) {
+            error(ctx.linea, "El metodo '" + ctx.nombre + "' ya existe para el struct '" + typeName + "'");
+            return null;
+        }
+        tabla.definirMetodo(typeName, new StructMethodDef(ctx.receiverVar, ctx.receiverType, ctx.nombre, ctx.parametros, ctx.body, ctx.linea, ctx.columna));
+        return null;
+    }
+
+    @Override
+    public Void visit(StructMethodCall.Context ctx) {
+        Simbolo s = validador.checkVariableExists(ctx.id, ctx.linea);
+        if (s == null) {
             tipoResultado = null;
+            return null;
+        }
+        if (!validador.checkIsStruct(s, ctx.linea, ctx.id, ", no tiene metodos")) {
+            tipoResultado = null;
+            return null;
+        }
+        String structName = s.structType;
+        StructMethodDef metodo = tabla.buscarMetodo(structName, ctx.nombre);
+        if (metodo == null) {
+            error(ctx.linea, "El struct '" + structName + "' no tiene un metodo llamado '" + ctx.nombre + "'");
+            tipoResultado = null;
+            return null;
+        }
+        if (ctx.argumentos.size() != metodo.getParametros().size()) {
+            error(ctx.linea, "El metodo '" + ctx.nombre + "' espera " + metodo.getParametros().size() + " argumentos pero se recibieron " + ctx.argumentos.size());
+            tipoResultado = null;
+            return null;
+        }
+        TipoDato[] argTypes = new TipoDato[ctx.argumentos.size()];
+        for (int i = 0; i < ctx.argumentos.size(); i++) {
+            ctx.argumentos.get(i).accept(this);
+            argTypes[i] = this.tipoResultado;
+        }
+        validador.validateParamTypes(argTypes, metodo.getParametros(), "del metodo", ctx.nombre, ctx.linea);
+        tipoResultado = null;
+        return null;
+    }
+
+    @Override
+    public Void visit(StructAccess.Context ctx) {
+        Simbolo s = validador.checkVariableExists(ctx.structId, ctx.linea);
+        if (s == null) {
+            tipoResultado = null;
+            return null;
+        }
+        if (!validador.checkIsStruct(s, ctx.linea, ctx.structId, "")) {
+            tipoResultado = null;
+            return null;
+        }
+        StructDef.Campo campo = validador.lookupStructField(s.structType, ctx.campo, ctx.linea);
+        if (campo == null) {
+            tipoResultado = null;
+        } else {
+            TipoUtils.TipoParseResult pr = TipoUtils.parseTipo(campo.tipo);
+            tipoResultado = pr.tipo;
         }
         return null;
     }
 
     @Override
     public Void visit(StructAssign.Context ctx) {
-        Simbolo s = tabla.buscar(ctx.structId);
-        if (s == null) {
-            error(ctx.linea, "Variable '" + ctx.structId + "' no declarada");
-            return null;
-        }
-        if (s.tipo != TipoDato.STRUCT) {
-            error(ctx.linea, "La variable '" + ctx.structId + "' no es un struct");
-            return null;
-        }
-        List<StructDef.Campo> campos = tabla.buscarStruct(s.structType);
-        if (campos == null) {
-            error(ctx.linea, "El tipo struct '" + s.structType + "' no esta definido");
-            return null;
-        }
-        boolean encontrado = false;
-        String tipoCampoStr = null;
-        for (StructDef.Campo c : campos) {
-            if (c.nombre.equals(ctx.campo)) {
-                tipoCampoStr = c.tipo.toUpperCase();
-                encontrado = true;
-                break;
-            }
-        }
-        if (!encontrado) {
-            error(ctx.linea, "El struct '" + s.structType + "' no tiene un campo llamado '" + ctx.campo + "'");
-            return null;
-        }
+        Simbolo s = validador.checkVariableExists(ctx.structId, ctx.linea);
+        if (s == null) return null;
+        if (!validador.checkIsStruct(s, ctx.linea, ctx.structId, "")) return null;
+        StructDef.Campo campo = validador.lookupStructField(s.structType, ctx.campo, ctx.linea);
+        if (campo == null) return null;
+        String tipoCampoStr = campo.tipo.toUpperCase();
         ctx.valor.accept(this);
         TipoDato tipoValor = this.tipoResultado;
         if (tipoValor != null) {
@@ -857,7 +789,7 @@ public class VisitorSemantico implements Visitor<Void> {
             } else {
                 try {
                     TipoDato tipoCampo = TipoDato.valueOf(tipoCampoStr);
-                    if (!sonCompatibles(tipoCampo, tipoValor)) {
+                    if (!TipoUtils.sonCompatibles(tipoCampo, tipoValor)) {
                         error(ctx.linea, "No se puede asignar " + tipoValor + " al campo '" + ctx.campo + "' de tipo " + tipoCampoStr.toLowerCase());
                     }
                 } catch (IllegalArgumentException e) {
@@ -869,35 +801,83 @@ public class VisitorSemantico implements Visitor<Void> {
     }
 
     @Override
+    public Void visit(FuncDef.Context ctx) {
+        if (!validador.checkGlobalScope(ctx.linea, "Las funciones solo pueden declararse en el ambito global")) return null;
+        if (tabla.existeFuncion(ctx.nombre)) {
+            error(ctx.linea, "La funcion '" + ctx.nombre + "' ya existe");
+            return null;
+        }
+        Set<String> paramNames = new HashSet<>();
+        for (Parametro p : ctx.parametros) {
+            if (!paramNames.add(p.nombre.toUpperCase())) {
+                error(ctx.linea, "El parametro '" + p.nombre + "' esta duplicado en la funcion '" + ctx.nombre + "'");
+            }
+        }
+        tabla.definirFuncion(ctx.nombre, new FuncDef(ctx.nombre, ctx.parametros, ctx.tipoRetorno, ctx.body, ctx.linea, ctx.columna));
+        return null;
+    }
+
+    @Override
+    public Void visit(FuncCall.Context ctx) {
+        FuncDef func = tabla.buscarFuncion(ctx.nombre);
+        if (func == null) {
+            error(ctx.linea, "La funcion '" + ctx.nombre + "' no ha sido declarada");
+            tipoResultado = null;
+            return null;
+        }
+        if (ctx.argumentos.size() != func.getParametros().size()) {
+            error(ctx.linea, "La funcion '" + ctx.nombre + "' espera " + func.getParametros().size() + " argumentos pero se recibieron " + ctx.argumentos.size());
+            tipoResultado = null;
+            return null;
+        }
+        TipoDato[] argTypes = new TipoDato[ctx.argumentos.size()];
+        for (int i = 0; i < ctx.argumentos.size(); i++) {
+            ctx.argumentos.get(i).accept(this);
+            argTypes[i] = this.tipoResultado;
+        }
+        validador.validateParamTypes(argTypes, func.getParametros(), "de la funcion", ctx.nombre, ctx.linea);
+        if (func.getTipoRetorno() != null) {
+            TipoUtils.TipoParseResult pr = TipoUtils.parseTipo(func.getTipoRetorno());
+            tipoResultado = pr.tipo;
+            tipoStructResultado = pr.structType;
+        } else {
+            tipoResultado = null;
+        }
+        return null;
+    }
+
+    @Override
+    public Void visit(ReturnStmt.Context ctx) {
+        if (ctx.valor != null) {
+            ctx.valor.accept(this);
+        } else {
+            tipoResultado = null;
+        }
+        return null;
+    }
+
+    @Override
     public Void visit(NewStruct.Context ctx) {
-        // Verificar que el struct existe
         String nombreTipo = ctx.nombreTipo.toUpperCase();
-        if (!tabla.existeStruct(nombreTipo)) {
-            error(ctx.linea, "El struct '" + nombreTipo + "' no ha sido declarado");
+        if (!validador.checkStructExists(nombreTipo, ctx.linea)) {
             tipoResultado = null;
             return null;
         }
         List<StructDef.Campo> definicion = tabla.buscarStruct(nombreTipo);
-        // Verificar que todos los campos requeridos estan presentes y los tipos coinciden
         for (StructDef.Campo campo : definicion) {
             boolean encontrado = false;
             for (NewStruct.CampoInit init : ctx.campos) {
                 if (init.nombre.equals(campo.nombre)) {
                     init.valor.accept(this);
-                    // Validar tipo
                     String tipoEsperadoStr = campo.tipo.toUpperCase();
                     if (tipoEsperadoStr.startsWith("STRUCT_") || tipoEsperadoStr.startsWith("SLICE_STRUCT_")) {
                         if (this.tipoResultado != TipoDato.STRUCT && this.tipoResultado != TipoDato.SLICE_STRUCT) {
                             error(ctx.linea, "El campo '" + campo.nombre + "' espera un struct");
                         }
                     } else {
-                        try {
-                            TipoDato tipoEsperado = TipoDato.valueOf(tipoEsperadoStr);
-                            if (!sonCompatibles(tipoEsperado, this.tipoResultado)) {
-                                error(ctx.linea, "El campo '" + campo.nombre + "' espera " + tipoEsperadoStr.toLowerCase() + " pero se recibio " + this.tipoResultado);
-                            }
-                        } catch (IllegalArgumentException e) {
-                            error(ctx.linea, "Tipo no reconocido para campo '" + campo.nombre + "'");
+                        TipoUtils.TipoParseResult pr = TipoUtils.parseTipo(campo.tipo);
+                        if (pr.tipo != null && !TipoUtils.sonCompatibles(pr.tipo, this.tipoResultado)) {
+                            error(ctx.linea, "El campo '" + campo.nombre + "' espera " + tipoEsperadoStr.toLowerCase() + " pero se recibio " + this.tipoResultado);
                         }
                     }
                     encontrado = true;
@@ -908,7 +888,6 @@ public class VisitorSemantico implements Visitor<Void> {
                 error(ctx.linea, "Falta el campo '" + campo.nombre + "' en la inicializacion del struct '" + nombreTipo + "'");
             }
         }
-        // Verificar que no haya campos extra
         for (NewStruct.CampoInit init : ctx.campos) {
             boolean existe = false;
             for (StructDef.Campo campo : definicion) {
@@ -924,27 +903,6 @@ public class VisitorSemantico implements Visitor<Void> {
         tipoResultado = TipoDato.STRUCT;
         this.tipoStructResultado = nombreTipo;
         return null;
-    }
-
-    private boolean sonCompatibles(TipoDato declarado, TipoDato expr) {
-        return sonCompatibles(declarado, expr, null, null);
-    }
-
-    private boolean sonCompatibles(TipoDato declarado, TipoDato expr, String structDecl, String structExpr) {
-        if (declarado == TipoDato.STRUCT || declarado == TipoDato.SLICE_STRUCT) {
-            if (declarado != expr) return false;
-            // Mismo struct type
-            if (structDecl == null || structExpr == null) return false;
-            return structDecl.equals(structExpr);
-        }
-        if (declarado == expr) {
-            return true;
-        }
-        // int -> float64 implicit conversion
-        if (declarado == TipoDato.FLOAT64 && expr == TipoDato.INT) {
-            return true;
-        }
-        return false;
     }
 
 }

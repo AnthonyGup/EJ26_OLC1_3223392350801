@@ -52,7 +52,7 @@ action code
 // ========== TERMINALES ==========
 
 terminal String CADENA, ENTERO, DECIMAL, IDENTIFICADOR, CHAR;
-terminal FUNC, MAIN, IF, ELSE, FOR, BREAK, CONTINUE;
+terminal FUNC, MAIN, IF, ELSE, FOR, BREAK, CONTINUE, RETURN;
 terminal SWITCH, CASE, DEFAULT, DOSPUNTOS;
 terminal TRUE, FALSE, NIL;
 terminal INT, FLOAT64, STRING, BOOL, RUNE;
@@ -103,8 +103,15 @@ nonterminal Object CAMPO;
 nonterminal NodoAST STRUCT_ACCESS;
 nonterminal NodoAST STRUCT_ASSIGN;
 nonterminal NodoAST NEW_STRUCT;
+nonterminal NodoAST STRUCT_METHOD_DEF;
+nonterminal NodoAST STRUCT_METHOD_CALL;
 nonterminal List LISTA_CAMPOS_INIT;
 nonterminal Object CAMPO_INIT;
+nonterminal NodoAST FUNCTION_DEF;
+nonterminal NodoAST RETURN_STMT;
+nonterminal Object PARAM;
+nonterminal List PARAMS;
+nonterminal String TIPO_OPCIONAL;
 
 // ========== PRECEDENCIA ==========
 
@@ -121,21 +128,52 @@ start with PROGRAMA;
 
 // ========== GRAMATICA ==========
 
-PROGRAMA ::= DECLARACIONES_PROGRAMA:defs FUNC:f MAIN PAR1 PAR2 BLOQUE:b
-              {: RESULT = new Programa((List<StructDef>)defs, ((Bloque)b).instrucciones(), fleft, fright); :}
-            | DECLARACIONES_PROGRAMA:defs INSTRUCCIONES:i
-              {: RESULT = new Programa((List<StructDef>)defs, (List<NodoAST>)i, ileft, iright); :}
+PROGRAMA ::= DECLARACIONES_PROGRAMA:dlist FUNC:f MAIN PAR1 PAR2 BLOQUE:b
+              {:
+                List<NodoAST> raw = (List<NodoAST>)dlist;
+                List<StructDef> structDefs = new ArrayList<>();
+                List<StructMethodDef> methodDefs = new ArrayList<>();
+                List<FuncDef> funcDefs = new ArrayList<>();
+                for (NodoAST n : raw) {
+                  if (n instanceof StructDef) structDefs.add((StructDef)n);
+                  else if (n instanceof StructMethodDef) methodDefs.add((StructMethodDef)n);
+                  else if (n instanceof FuncDef) funcDefs.add((FuncDef)n);
+                }
+                RESULT = new Programa(structDefs, methodDefs, funcDefs, ((Bloque)b).instrucciones(), fleft, fright);
+              :}
+            | DECLARACIONES_PROGRAMA:dlist INSTRUCCIONES:i
+              {:
+                List<NodoAST> raw = (List<NodoAST>)dlist;
+                List<StructDef> structDefs = new ArrayList<>();
+                List<StructMethodDef> methodDefs = new ArrayList<>();
+                List<FuncDef> funcDefs = new ArrayList<>();
+                for (NodoAST n : raw) {
+                  if (n instanceof StructDef) structDefs.add((StructDef)n);
+                  else if (n instanceof StructMethodDef) methodDefs.add((StructMethodDef)n);
+                  else if (n instanceof FuncDef) funcDefs.add((FuncDef)n);
+                }
+                RESULT = new Programa(structDefs, methodDefs, funcDefs, (List<NodoAST>)i, ileft, iright);
+              :}
 ;
 
 DECLARACIONES_PROGRAMA ::= DECLARACIONES_PROGRAMA:list STRUCT_DEF:d
                             {:
-                              List<StructDef> l = (List<StructDef>)list;
-                              l.add((StructDef)d);
-                              RESULT = l;
+                              ((List<NodoAST>)list).add((StructDef)d);
+                              RESULT = list;
+                            :}
+                          | DECLARACIONES_PROGRAMA:list STRUCT_METHOD_DEF:d
+                            {:
+                              ((List<NodoAST>)list).add((StructMethodDef)d);
+                              RESULT = list;
+                            :}
+                          | DECLARACIONES_PROGRAMA:list FUNCTION_DEF:d
+                            {:
+                              ((List<NodoAST>)list).add((FuncDef)d);
+                              RESULT = list;
                             :}
                           | 
                             {:
-                              RESULT = new ArrayList<StructDef>();
+                              RESULT = new ArrayList<NodoAST>();
                             :}
 ;
 
@@ -187,6 +225,7 @@ INSTRUCCION ::= DECLARACION_VAR:d      {: RESULT = d; :}
               | SENTENCIA_BREAK:d  {: RESULT = d; :}
               | SENTENCIA_CONTINUE:d {: RESULT = d; :}
               | BLOQUE:d           {: RESULT = d; :}
+              | RETURN_STMT:d      {: RESULT = d; :}
               | EXPRESION:e        {: RESULT = e; :}
               | error FIN_LINEA     {: RESULT = null; :}
               | error PTOCOMA      {: RESULT = null; :}
@@ -393,6 +432,10 @@ EXPRESION ::= EXPRESION:izq OR EXPRESION:der
               {: RESULT = new Literal(null, "nil", tleft, tright); :}
             | IDENTIFICADOR:id
               {: RESULT = new Identificador((String)id, idleft, idright); :}
+            | IDENTIFICADOR:id PAR1 LISTA_EXPRESIONES:args PAR2
+              {: RESULT = new FuncCall((String)id, (List<NodoAST>)args, idleft, idright); :}
+            | IDENTIFICADOR:id PAR1 PAR2
+              {: RESULT = new FuncCall((String)id, new ArrayList<>(), idleft, idright); :}
             | PAR1 EXPRESION:e PAR2
               {: RESULT = e; :}
             | LLAMADA_FUNCION:fn
@@ -401,6 +444,8 @@ EXPRESION ::= EXPRESION:izq OR EXPRESION:der
               {: RESULT = new Len(e, lkleft, lkright); :}
             | STRUCT_ACCESS:sa
               {: RESULT = sa; :}
+            | STRUCT_METHOD_CALL:smc
+              {: RESULT = smc; :}
             | NEW_STRUCT:ns
               {: RESULT = ns; :}
             | APPEND:ak PAR1 EXPRESION:s COMA LISTA_EXPRESIONES:elems PAR2
@@ -505,4 +550,49 @@ LISTA_CAMPOS_INIT ::= LISTA_CAMPOS_INIT:list COMA CAMPO_INIT:c
 
 CAMPO_INIT ::= IDENTIFICADOR:n DOSPUNTOS EXPRESION:e
                {: RESULT = new NewStruct.CampoInit((String)n, e); :}
+;
+
+PARAM ::= IDENTIFICADOR:n TIPO:t
+          {: RESULT = new Parametro((String)n, (String)t, nleft, nright); :}
+;
+
+PARAMS ::= PARAMS:list COMA PARAM:p
+           {:
+             ((List<Parametro>)list).add((Parametro)p);
+             RESULT = list;
+           :}
+         | PARAM:p
+           {:
+             List<Parametro> l = new ArrayList<>();
+             l.add((Parametro)p);
+             RESULT = l;
+           :}
+         | 
+           {:
+             RESULT = new ArrayList<Parametro>();
+           :}
+;
+
+TIPO_OPCIONAL ::= TIPO:t {: RESULT = t; :}
+                | {: RESULT = null; :}
+;
+
+FUNCTION_DEF ::= FUNC IDENTIFICADOR:name PAR1 PARAMS:params PAR2 TIPO_OPCIONAL:retType BLOQUE:body
+                 {: RESULT = new FuncDef((String)name, (List<Parametro>)params, (String)retType, (NodoAST)body, nameleft, nameright); :}
+;
+
+RETURN_STMT ::= RETURN:rt EXPRESION:e
+                {: RESULT = new ReturnStmt(e, rtleft, rtright); :}
+              | RETURN:rt
+                {: RESULT = new ReturnStmt(null, rtleft, rtright); :}
+;
+
+STRUCT_METHOD_DEF ::= FUNC PAR1 IDENTIFICADOR:recvVar IDENTIFICADOR:recvType PAR2 IDENTIFICADOR:name PAR1 PARAMS:params PAR2 BLOQUE:body
+                      {: RESULT = new StructMethodDef((String)recvVar, ((String)recvType).toUpperCase(), (String)name, (List<Parametro>)params, (NodoAST)body, recvVarleft, recvVarright); :}
+;
+
+STRUCT_METHOD_CALL ::= IDENTIFICADOR:obj PUNTO IDENTIFICADOR:metodo PAR1 LISTA_EXPRESIONES:args PAR2
+                       {: RESULT = new StructMethodCall((String)obj, (String)metodo, (List<NodoAST>)args, objleft, objright); :}
+                     | IDENTIFICADOR:obj PUNTO IDENTIFICADOR:metodo PAR1 PAR2
+                       {: RESULT = new StructMethodCall((String)obj, (String)metodo, new ArrayList<>(), objleft, objright); :}
 ;

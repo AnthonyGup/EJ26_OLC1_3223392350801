@@ -17,15 +17,26 @@ public class VisitorEjecucion implements Visitor<Valor> {
 
     private final GestorAmbitos gestor = new GestorAmbitos();
 
+    private final Map<String, StructMethodDef> metodosStruct = new HashMap<>();
+
+    private final Map<String, FuncDef> funciones = new HashMap<>();
+
     public Valor Visitar(NodoAST nodo) {
         return nodo.accept(this);
     }
 
     @Override
     public Valor visit(Programa.Context ctx) {
-        // Registrar structs en el gestor de ambitos
         for (StructDef sd : ctx.structDefs) {
             sd.accept(this);
+        }
+        for (StructMethodDef md : ctx.structMethods) {
+            md.accept(this);
+            metodosStruct.put((md.getReceiverType() + "." + md.getNombre()).toUpperCase(), md);
+        }
+        for (FuncDef fd : ctx.funcDefs) {
+            fd.accept(this);
+            funciones.put(fd.getNombre().toUpperCase(), fd);
         }
         for (NodoAST instr : ctx.instrucciones) {
             instr.accept(this);
@@ -103,11 +114,11 @@ public class VisitorEjecucion implements Visitor<Valor> {
     @Override
     public Valor visit(For.Context ctx) {
         gestor.entrarBloque();
-        if (ctx.init != null) {
-            ctx.init.accept(this);
-        }
-
         try {
+            if (ctx.init != null) {
+                ctx.init.accept(this);
+            }
+
             while (true) {
                 if (ctx.condicion == null) break;
                 Valor cond = ctx.condicion.accept(this);
@@ -129,9 +140,9 @@ public class VisitorEjecucion implements Visitor<Valor> {
                 }
             }
         } catch (BreakException e) {
+        } finally {
+            gestor.salirBloque();
         }
-
-        gestor.salirBloque();
         return defaultVoid;
     }
 
@@ -406,7 +417,7 @@ public class VisitorEjecucion implements Visitor<Valor> {
         if (val instanceof ValorSlice vs) {
             return new ValorInt(vs.elementos().size(), ctx.linea, ctx.columna);
         }
-        throw new RuntimeException("Linea " + ctx.linea + ": len solo es válido para slices");
+        throw new RuntimeException("Linea " + ctx.linea + ": len solo es valido para slices");
     }
 
     @Override
@@ -440,7 +451,7 @@ public class VisitorEjecucion implements Visitor<Valor> {
         java.util.List<Valor> elems = vs.elementos();
 
         if (idx < 0 || idx >= elems.size()) {
-            throw new RuntimeException("Linea " + ctx.linea + ": indice " + idx + " fuera de rango (tamaño " + elems.size() + ")");
+            throw new RuntimeException("Linea " + ctx.linea + ": indice " + idx + " fuera de rango (tamano " + elems.size() + ")");
         }
 
         return elems.get(idx);
@@ -463,7 +474,7 @@ public class VisitorEjecucion implements Visitor<Valor> {
         java.util.List<Valor> elems = vs.elementos();
 
         if (idx < 0 || idx >= elems.size()) {
-            throw new RuntimeException("Linea " + ctx.linea + ": indice " + idx + " fuera de rango (tamaño " + elems.size() + ")");
+            throw new RuntimeException("Linea " + ctx.linea + ": indice " + idx + " fuera de rango (tamano " + elems.size() + ")");
         }
 
         java.util.List<Valor> nuevos = new java.util.ArrayList<>(elems);
@@ -511,8 +522,6 @@ public class VisitorEjecucion implements Visitor<Valor> {
 
     @Override
     public Valor visit(StructDef.Context ctx) {
-        // Los structs se registran en la tabla de simbolos (semantico),
-        // en ejecucion no necesitan accion
         return defaultVoid;
     }
 
@@ -536,10 +545,43 @@ public class VisitorEjecucion implements Visitor<Valor> {
             throw new RuntimeException("Linea " + ctx.linea + ": '" + ctx.structId + "' no es un struct");
         }
         Valor valVal = ctx.valor.accept(this);
-        Map<String, Valor> nuevosCampos = new HashMap<>(vs.campos());
-        nuevosCampos.put(ctx.campo, valVal);
-        ValorStruct nuevoStruct = new ValorStruct(nuevosCampos, vs.nombreTipo(), ctx.linea, ctx.columna);
-        gestor.asignar(ctx.structId, nuevoStruct, ctx.linea);
+        vs.campos().put(ctx.campo, valVal);
+        return defaultVoid;
+    }
+
+    @Override
+    public Valor visit(StructMethodDef.Context ctx) {
+        return defaultVoid;
+    }
+
+    @Override
+    public Valor visit(StructMethodCall.Context ctx) {
+        Valor structVal = gestor.buscar(ctx.id, ctx.linea);
+        if (!(structVal instanceof ValorStruct vs)) {
+            throw new RuntimeException("Linea " + ctx.linea + ": '" + ctx.id + "' no es un struct");
+        }
+        String structName = vs.nombreTipo();
+        String key = (structName + "." + ctx.nombre).toUpperCase();
+        StructMethodDef metodo = metodosStruct.get(key);
+        if (metodo == null) {
+            throw new RuntimeException("Linea " + ctx.linea + ": el struct '" + structName + "' no tiene metodo '" + ctx.nombre + "'");
+        }
+        // Validar cantidad de argumentos
+        if (ctx.argumentos.size() != metodo.getParametros().size()) {
+            throw new RuntimeException("Linea " + ctx.linea + ": el metodo '" + ctx.nombre + "' espera " + metodo.getParametros().size() + " argumentos pero se recibieron " + ctx.argumentos.size());
+        }
+        gestor.entrarBloque();
+        try {
+            gestor.declarar(metodo.getReceiverVar(), vs);
+            for (int i = 0; i < metodo.getParametros().size(); i++) {
+                Parametro param = metodo.getParametros().get(i);
+                Valor argVal = ctx.argumentos.get(i).accept(this);
+                gestor.declarar(param.nombre, argVal);
+            }
+            metodo.getBody().accept(this);
+        } finally {
+            gestor.salirBloque();
+        }
         return defaultVoid;
     }
 
@@ -556,5 +598,44 @@ public class VisitorEjecucion implements Visitor<Valor> {
     @Override
     public Valor visit(Identificador.Context ctx) {
         return gestor.buscar(ctx.nombre, ctx.linea);
+    }
+
+    @Override
+    public Valor visit(FuncDef.Context ctx) {
+        return defaultVoid;
+    }
+
+    @Override
+    public Valor visit(FuncCall.Context ctx) {
+        FuncDef func = funciones.get(ctx.nombre.toUpperCase());
+        if (func == null) {
+            throw new RuntimeException("Linea " + ctx.linea + ": la funcion '" + ctx.nombre + "' no ha sido declarada");
+        }
+        if (ctx.argumentos.size() != func.getParametros().size()) {
+            throw new RuntimeException("Linea " + ctx.linea + ": la funcion '" + ctx.nombre + "' espera " + func.getParametros().size() + " argumentos pero se recibieron " + ctx.argumentos.size());
+        }
+        gestor.entrarBloque();
+        try {
+            for (int i = 0; i < func.getParametros().size(); i++) {
+                Parametro param = func.getParametros().get(i);
+                Valor argVal = ctx.argumentos.get(i).accept(this);
+                gestor.declarar(param.nombre, argVal);
+            }
+            func.getBody().accept(this);
+        } catch (ReturnException e) {
+            return e.valor;
+        } finally {
+            gestor.salirBloque();
+        }
+        return defaultVoid;
+    }
+
+    @Override
+    public Valor visit(ReturnStmt.Context ctx) {
+        if (ctx.valor != null) {
+            throw new ReturnException(ctx.valor.accept(this));
+        } else {
+            throw new ReturnException(defaultVoid);
+        }
     }
 }

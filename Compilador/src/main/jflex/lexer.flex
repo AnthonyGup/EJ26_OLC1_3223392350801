@@ -31,6 +31,7 @@ import java.util.ArrayList;
             case sym.MENOSMENOS:
             case sym.BREAK:
             case sym.CONTINUE:
+            case sym.RETURN:
                 return profundidad > 0;
             default:
                 return false;
@@ -110,6 +111,7 @@ newline    = [\n]
 <YYINITIAL> "len"         { return token(sym.LEN, yytext(), "len", yyline, yycolumn); }
 <YYINITIAL> "append"      { return token(sym.APPEND, yytext(), "append", yyline, yycolumn); }
 <YYINITIAL> "struct"      { return token(sym.STRUCT, yytext(), "struct", yyline, yycolumn); }
+<YYINITIAL> "return"      { return token(sym.RETURN, yytext(), "return", yyline, yycolumn); }
 
 <YYINITIAL> "=="          { return token(sym.IGUALIGUAL, yytext(), "==", yyline, yycolumn); }
 <YYINITIAL> "!="          { return token(sym.DIFERENTE, yytext(), "!=", yyline, yycolumn); }

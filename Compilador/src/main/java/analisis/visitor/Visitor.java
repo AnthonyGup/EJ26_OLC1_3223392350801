@@ -31,4 +31,9 @@ public interface Visitor<T> {
     T visit(StructAccess.Context ctx);
     T visit(StructAssign.Context ctx);
     T visit(NewStruct.Context ctx);
+    T visit(StructMethodDef.Context ctx);
+    T visit(StructMethodCall.Context ctx);
+    T visit(FuncDef.Context ctx);
+    T visit(FuncCall.Context ctx);
+    T visit(ReturnStmt.Context ctx);
 }
