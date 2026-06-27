@@ -20,8 +20,11 @@ public class VisitorGrafico implements Visitor<String> {
         return id;
     }
 
-    private void edge(String from, String to) {
-        sb.append("  ").append(from).append(" -> ").append(to).append(";\n");
+    private void edge(String from, String to, String label) {
+        sb.append("  ").append(from).append(" -> ").append(to);
+        if (label != null && !label.isEmpty())
+            sb.append(" [label=\"").append(escape(label)).append("\"]");
+        sb.append(";\n");
     }
 
     private static String escape(String s) {
@@ -37,7 +40,7 @@ public class VisitorGrafico implements Visitor<String> {
 
     private void enlazar(String idPadre, String idHijo, String label) {
         if (idHijo != null) {
-            edge(idPadre, idHijo);
+            edge(idPadre, idHijo, label);
         }
     }
 
@@ -54,19 +57,19 @@ public class VisitorGrafico implements Visitor<String> {
         nodo(id, "Programa (" + ctx.linea + ":" + ctx.columna + ")");
         for (StructDef sd : ctx.structDefs) {
             String h = sd.accept(this);
-            if (h != null) edge(id, h);
+            if (h != null) edge(id, h, null);
         }
         for (StructMethodDef smd : ctx.structMethods) {
             String h = smd.accept(this);
-            if (h != null) edge(id, h);
+            if (h != null) edge(id, h, null);
         }
         for (FuncDef fd : ctx.funcDefs) {
             String h = fd.accept(this);
-            if (h != null) edge(id, h);
+            if (h != null) edge(id, h, null);
         }
         for (NodoAST inst : ctx.instrucciones) {
             String h = inst.accept(this);
-            if (h != null) edge(id, h);
+            if (h != null) edge(id, h, null);
         }
         return id;
     }
@@ -77,7 +80,7 @@ public class VisitorGrafico implements Visitor<String> {
         nodo(id, "Bloque");
         for (NodoAST inst : ctx.instrucciones) {
             String h = inst.accept(this);
-            if (h != null) edge(id, h);
+            if (h != null) edge(id, h, null);
         }
         return id;
     }
@@ -162,7 +165,7 @@ public class VisitorGrafico implements Visitor<String> {
         for (Switch.Caso caso : ctx.casos) {
             String idCaso = nextId();
             nodo(idCaso, "Caso");
-            edge(id, idCaso);
+            edge(id, idCaso, null);
             for (NodoAST exp : caso.expresiones) {
                 String h = visitar(exp);
                 enlazar(idCaso, h, "match");
@@ -300,9 +303,12 @@ public class VisitorGrafico implements Visitor<String> {
         String id = nextId();
         nodo(id, "Slice2D[" + ctx.tipo + "]");
         for (List<NodoAST> fila : ctx.filas) {
+            String idFila = nextId();
+            nodo(idFila, "Fila");
+            edge(id, idFila, null);
             for (NodoAST elem : fila) {
                 String h = visitar(elem);
-                enlazar(id, h, null);
+                edge(idFila, h, null);
             }
         }
         return id;
@@ -328,7 +334,7 @@ public class VisitorGrafico implements Visitor<String> {
         for (StructDef.Campo campo : ctx.campos) {
             String idCampo = nextId();
             nodo(idCampo, campo.nombre + " : " + campo.tipo);
-            edge(id, idCampo);
+            edge(id, idCampo, null);
         }
         return id;
     }
@@ -356,7 +362,7 @@ public class VisitorGrafico implements Visitor<String> {
         for (NewStruct.CampoInit campo : ctx.campos) {
             String idCampo = nextId();
             nodo(idCampo, campo.nombre);
-            edge(id, idCampo);
+            edge(id, idCampo, null);
             String hVal = visitar(campo.valor);
             enlazar(idCampo, hVal, null);
         }
@@ -366,14 +372,17 @@ public class VisitorGrafico implements Visitor<String> {
     @Override
     public String visit(StructMethodDef.Context ctx) {
         String id = nextId();
-        nodo(id, "Method (" + ctx.receiverType + ") " + ctx.nombre);
+        nodo(id, "Method " + ctx.nombre);
+        String idRecv = nextId();
+        nodo(idRecv, "receiver: " + ctx.receiverVar + " " + ctx.receiverType);
+        edge(id, idRecv, null);
         String idParams = nextId();
         nodo(idParams, "Params");
-        edge(id, idParams);
+        edge(id, idParams, null);
         for (Parametro p : ctx.parametros) {
             String idP = nextId();
             nodo(idP, p.nombre + " : " + p.tipo);
-            edge(idParams, idP);
+            edge(idParams, idP, null);
         }
         String hBody = visitar(ctx.body);
         enlazar(id, hBody, "body");
@@ -398,11 +407,11 @@ public class VisitorGrafico implements Visitor<String> {
         nodo(id, "Func " + ctx.nombre + ret);
         String idParams = nextId();
         nodo(idParams, "Params");
-        edge(id, idParams);
+        edge(id, idParams, null);
         for (Parametro p : ctx.parametros) {
             String idP = nextId();
             nodo(idP, p.nombre + " : " + p.tipo);
-            edge(idParams, idP);
+            edge(idParams, idP, null);
         }
         String hBody = visitar(ctx.body);
         enlazar(id, hBody, "body");

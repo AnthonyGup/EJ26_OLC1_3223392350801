@@ -1,6 +1,6 @@
 # Ignorar target
 /Compilador/target/
-*.jar
+
 *.war
 
 # Java compiled classes

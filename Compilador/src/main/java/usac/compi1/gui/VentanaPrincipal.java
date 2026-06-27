@@ -1,25 +1,52 @@
 package usac.compi1.gui;
 
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
+import javax.swing.JSplitPane;
+import javax.swing.filechooser.FileNameExtensionFilter;
+
 import analisis.Lexer;
-import analisis.parser;
 import analisis.ast.Programa;
+import analisis.parser;
 import analisis.visitor.VisitorSemantico;
 import analisis.visitor.ejecucion.VisitorEjecucion;
 import analisis.visitor.grafico.VisitorGrafico;
 import guru.nidi.graphviz.engine.Format;
 import guru.nidi.graphviz.engine.Graphviz;
+import java_cup.runtime.Symbol;
 import usac.compi1.gui.reports.GoliteError;
 import usac.compi1.gui.reports.ReporteDialog;
 import usac.compi1.gui.reports.TokenInfo;
-import java_cup.runtime.Symbol;
-import javax.swing.*;
-import javax.swing.filechooser.FileNameExtensionFilter;
-import java.awt.*;
-import java.awt.event.*;
-import java.awt.image.BufferedImage;
-import java.io.*;
-import java.util.List;
-import java.util.ArrayList;
 
 public class VentanaPrincipal extends JFrame {
 
@@ -250,30 +277,36 @@ public class VentanaPrincipal extends JFrame {
 
             JPanel panel = new JPanel() {
                 private double escala = 1.0;
+
                 @Override
                 protected void paintComponent(Graphics g) {
                     super.paintComponent(g);
                     Graphics2D g2 = (Graphics2D) g;
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                            RenderingHints.VALUE_ANTIALIAS_ON);
                     g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                             RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                    g2.setRenderingHint(RenderingHints.KEY_RENDERING,
+                            RenderingHints.VALUE_RENDER_QUALITY);
                     int w = (int) (img.getWidth() * escala);
                     int h = (int) (img.getHeight() * escala);
                     g2.drawImage(img, 0, 0, w, h, null);
                 }
-                @Override
-                protected void processMouseWheelEvent(MouseWheelEvent e) {
-                    if (e.isControlDown()) {
-                        escala *= e.getWheelRotation() < 0 ? 1.15 : 1 / 1.15;
-                        escala = Math.max(0.05, Math.min(20, escala));
-                        setPreferredSize(new Dimension(
-                                (int) (img.getWidth() * escala),
-                                (int) (img.getHeight() * escala)));
-                        revalidate();
-                        repaint();
-                        e.consume();
-                    } else {
-                        super.processMouseWheelEvent(e);
-                    }
+
+                {
+                    setFocusable(true);
+                    addMouseWheelListener(e -> {
+                        if (e.isControlDown()) {
+                            escala *= e.getWheelRotation() < 0 ? 1.15 : 1 / 1.15;
+                            escala = Math.max(0.05, Math.min(20, escala));
+                            setPreferredSize(new Dimension(
+                                    (int) (img.getWidth() * escala),
+                                    (int) (img.getHeight() * escala)));
+                            revalidate();
+                            repaint();
+                            e.consume();
+                        }
+                    });
                 }
             };
             panel.setPreferredSize(new Dimension(img.getWidth(), img.getHeight()));
