@@ -583,7 +583,7 @@ FUNCTION_DEF ::= FUNC IDENTIFICADOR:name PAR1 PARAMS:params PAR2 TIPO_OPCIONAL:r
 
 RETURN_STMT ::= RETURN:rt EXPRESION:e
                 {: RESULT = new ReturnStmt(e, rtleft, rtright); :}
-              | RETURN:rt
+              | RETURN:rt FIN_LINEA
                 {: RESULT = new ReturnStmt(null, rtleft, rtright); :}
 ;
 
