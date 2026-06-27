@@ -14,6 +14,8 @@ public class Identificador implements NodoAST {
         this.columna = columna;
     }
 
+    public String getNombre() { return nombre; }
+
     public static class Context {
         public final String nombre;
         public final int linea;

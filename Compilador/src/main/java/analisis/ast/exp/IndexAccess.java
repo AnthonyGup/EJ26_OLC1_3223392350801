@@ -16,6 +16,9 @@ public class IndexAccess implements NodoAST {
         this.columna = columna;
     }
 
+    public NodoAST getBase() { return base; }
+    public NodoAST getIndice() { return indice; }
+
     public static class Context {
         public final NodoAST base;
         public final NodoAST indice;

@@ -15,6 +15,9 @@ public class StructAccess implements NodoAST {
         this.columna = columna;
     }
 
+    public String getStructId() { return structId; }
+    public String getCampo() { return campo; }
+
     public static class Context {
         public final String structId;
         public final String campo;

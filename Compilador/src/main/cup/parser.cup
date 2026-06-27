@@ -70,6 +70,7 @@ terminal CORCHETE1, CORCHETE2;
 terminal PAR1, PAR2, LLAVE1, LLAVE2, PTOCOMA, PUNTO, COMA;
 terminal FIN_LINEA;
 terminal UMENOS;
+terminal SIMPLE;
 
 // ========== NO TERMINALES ==========
 
@@ -78,9 +79,7 @@ nonterminal NodoAST BLOQUE;
 nonterminal List INSTRUCCIONES;
 nonterminal NodoAST INSTRUCCION;
 nonterminal NodoAST DECLARACION_VAR;
-nonterminal NodoAST ASIGNACION;
-nonterminal NodoAST ASIGNACION_INDEX;
-nonterminal NodoAST ASIGNACION_OP;
+nonterminal NodoAST ACCESO;
 nonterminal NodoAST SENTENCIA_IF;
 nonterminal NodoAST SENTENCIA_FOR;
 nonterminal NodoAST SENTENCIA_SWITCH;
@@ -90,7 +89,6 @@ nonterminal Object CASO_SWITCH;
 nonterminal NodoAST SWITCH_DEFAULT;
 nonterminal NodoAST LLAMADA_FUNCION;
 nonterminal NodoAST EXPRESION;
-nonterminal NodoAST ASIGNACION_INDEX_2D;
 nonterminal String TIPO;
 nonterminal List LISTA_EXPRESIONES;
 nonterminal List LISTA_CASOS_SWITCH;
@@ -101,7 +99,6 @@ nonterminal NodoAST STRUCT_DEF;
 nonterminal List CAMPOS;
 nonterminal Object CAMPO;
 nonterminal NodoAST STRUCT_ACCESS;
-nonterminal NodoAST STRUCT_ASSIGN;
 nonterminal NodoAST NEW_STRUCT;
 nonterminal NodoAST STRUCT_METHOD_DEF;
 nonterminal NodoAST STRUCT_METHOD_CALL;
@@ -115,6 +112,8 @@ nonterminal String TIPO_OPCIONAL;
 
 // ========== PRECEDENCIA ==========
 
+precedence left SIMPLE;
+precedence left CORCHETE1, PAR1, LLAVE1;
 precedence left OR;
 precedence left AND;
 precedence left IGUALIGUAL, DIFERENTE;
@@ -204,11 +203,38 @@ INSTRUCCIONES ::= INSTRUCCIONES:list FIN_LINEA
 ;
 
 INSTRUCCION ::= DECLARACION_VAR:d      {: RESULT = d; :}
-              | ASIGNACION:d           {: RESULT = d; :}
-              | ASIGNACION_INDEX:d     {: RESULT = d; :}
-              | ASIGNACION_INDEX_2D:d  {: RESULT = d; :}
-              | ASIGNACION_OP:d        {: RESULT = d; :}
-              | STRUCT_ASSIGN:d        {: RESULT = d; :}
+              | ACCESO:a IGUAL EXPRESION:e
+                {:
+                  if (a instanceof Identificador) {
+                    RESULT = new Asignacion(((Identificador)a).getNombre(), e, aleft, aright);
+                  } else if (a instanceof IndexAccess) {
+                    IndexAccess ia = (IndexAccess)a;
+                    NodoAST base = ia.getBase();
+                    if (base instanceof Identificador) {
+                      RESULT = new AssignIndex(((Identificador)base).getNombre(), ia.getIndice(), e, aleft, aright);
+                    } else if (base instanceof IndexAccess) {
+                      IndexAccess ib = (IndexAccess)base;
+                      if (ib.getBase() instanceof Identificador) {
+                        RESULT = new AssignIndex2D(((Identificador)ib.getBase()).getNombre(), ib.getIndice(), ia.getIndice(), e, aleft, aright);
+                      }
+                    }
+                  } else if (a instanceof StructAccess) {
+                    StructAccess sa = (StructAccess)a;
+                    RESULT = new StructAssign(sa.getStructId(), sa.getCampo(), e, aleft, aright);
+                  }
+                :}
+              | ACCESO:a MASIGUAL EXPRESION:e
+                {:
+                  if (a instanceof Identificador) {
+                    RESULT = new AsignacionOp(((Identificador)a).getNombre(), "+=", e, aleft, aright);
+                  }
+                :}
+              | ACCESO:a MENOSIGUAL EXPRESION:e
+                {:
+                  if (a instanceof Identificador) {
+                    RESULT = new AsignacionOp(((Identificador)a).getNombre(), "-=", e, aleft, aright);
+                  }
+                :}
               | IDENTIFICADOR:id MASMAS
                 {: 
                   NodoAST uno = new Literal("1", "int", idleft, idright);
@@ -242,24 +268,6 @@ DECLARACION_VAR ::= TIPO:t IDENTIFICADOR:id IGUAL EXPRESION:e
                     :}
                   | IDENTIFICADOR:id DOSPUNTOSIGUAL EXPRESION:e
                     {: RESULT = new DeclaracionVar((String)id, e, idleft, idright); :}
-;
-
-ASIGNACION ::= IDENTIFICADOR:id IGUAL EXPRESION:e
-               {: RESULT = new Asignacion((String)id, e, idleft, idright); :}
-;
-
-ASIGNACION_INDEX ::= IDENTIFICADOR:id CORCHETE1 EXPRESION:idx CORCHETE2 IGUAL EXPRESION:val
-                     {: RESULT = new AssignIndex((String)id, idx, val, idleft, idright); :}
-;
-
-ASIGNACION_OP ::= IDENTIFICADOR:id MASIGUAL EXPRESION:e
-                  {: RESULT = new AsignacionOp((String)id, "+=", e, idleft, idright); :}
-                | IDENTIFICADOR:id MENOSIGUAL EXPRESION:e
-                  {: RESULT = new AsignacionOp((String)id, "-=", e, idleft, idright); :}
-;
-
-ASIGNACION_INDEX_2D ::= IDENTIFICADOR:id CORCHETE1 EXPRESION:i1 CORCHETE2 CORCHETE1 EXPRESION:i2 CORCHETE2 IGUAL EXPRESION:val
-                        {: RESULT = new AssignIndex2D((String)id, i1, i2, val, idleft, idright); :}
 ;
 
 SENTENCIA_IF ::= IF EXPRESION:cond BLOQUE:b
@@ -430,8 +438,8 @@ EXPRESION ::= EXPRESION:izq OR EXPRESION:der
               {: RESULT = new Literal("false", "bool", tleft, tright); :}
             | NIL:t
               {: RESULT = new Literal(null, "nil", tleft, tright); :}
-            | IDENTIFICADOR:id
-              {: RESULT = new Identificador((String)id, idleft, idright); :}
+            | ACCESO:a
+              {: RESULT = a; :} %prec SIMPLE
             | IDENTIFICADOR:id PAR1 LISTA_EXPRESIONES:args PAR2
               {: RESULT = new FuncCall((String)id, (List<NodoAST>)args, idleft, idright); :}
             | IDENTIFICADOR:id PAR1 PAR2
@@ -450,10 +458,6 @@ EXPRESION ::= EXPRESION:izq OR EXPRESION:der
               {: RESULT = ns; :}
             | APPEND:ak PAR1 EXPRESION:s COMA LISTA_EXPRESIONES:elems PAR2
               {: RESULT = new Append(s, (List<NodoAST>)elems, akleft, akright); :}
-            | IDENTIFICADOR:id CORCHETE1 EXPRESION:i1 CORCHETE2 CORCHETE1 EXPRESION:i2 CORCHETE2
-              {: RESULT = new IndexAccess(new IndexAccess(new Identificador((String)id, idleft, idright), i1, idleft, idright), i2, idleft, idright); :}
-            | IDENTIFICADOR:id CORCHETE1 EXPRESION:idx CORCHETE2
-              {: RESULT = new IndexAccess(new Identificador((String)id, idleft, idright), idx, idleft, idright); :}
             | CORCHETE1 CORCHETE2 TIPO:t LLAVE1 LISTA_EXPRESIONES:elems LLAVE2
               {: 
                 String st = (String)t;
@@ -521,12 +525,14 @@ CAMPO ::= TIPO:t IDENTIFICADOR:id
           {: RESULT = new StructDef.Campo((String)id, (String)t); :}
 ;
 
-STRUCT_ACCESS ::= IDENTIFICADOR:obj PUNTO IDENTIFICADOR:campo
-                  {: RESULT = new StructAccess((String)obj, (String)campo, objleft, objright); :}
+ACCESO ::= IDENTIFICADOR:id
+           {: RESULT = new Identificador((String)id, idleft, idright); :}
+         | ACCESO:base CORCHETE1 EXPRESION:idx CORCHETE2
+           {: RESULT = new IndexAccess(base, idx, baseleft, baseright); :}
 ;
 
-STRUCT_ASSIGN ::= IDENTIFICADOR:obj PUNTO IDENTIFICADOR:campo IGUAL EXPRESION:val
-                  {: RESULT = new StructAssign((String)obj, (String)campo, val, objleft, objright); :}
+STRUCT_ACCESS ::= IDENTIFICADOR:obj PUNTO IDENTIFICADOR:campo
+                  {: RESULT = new StructAccess((String)obj, (String)campo, objleft, objright); :}
 ;
 
 NEW_STRUCT ::= IDENTIFICADOR:t LLAVE1 LISTA_CAMPOS_INIT:campos LLAVE2
