@@ -7,7 +7,7 @@ Este documento resume la gramatica implementada en `parser.cup` en una forma cer
 Los terminales principales del lenguaje son:
 
 - Identificadores y literales: `IDENTIFICADOR`, `ENTERO`, `DECIMAL`, `CADENA`, `CHAR`
-- Palabras reservadas: `FUNC`, `MAIN`, `IF`, `ELSE`, `FOR`, `BREAK`, `CONTINUE`, `RETURN`, `SWITCH`, `CASE`, `DEFAULT`, `STRUCT`
+- Palabras reservadas: `VAR`, `FUNC`, `MAIN`, `IF`, `ELSE`, `FOR`, `BREAK`, `CONTINUE`, `RETURN`, `SWITCH`, `CASE`, `DEFAULT`, `STRUCT`
 - Literales especiales: `TRUE`, `FALSE`, `NIL`
 - Tipos: `INT`, `FLOAT64`, `STRING`, `BOOL`, `RUNE`
 - Operadores: `MAS`, `MENOS`, `MULT`, `DIV`, `MOD`, `MASMAS`, `MENOSMENOS`, `IGUAL`, `MASIGUAL`, `MENOSIGUAL`, `DOSPUNTOSIGUAL`, `IGUALIGUAL`, `DIFERENTE`, `MAYOR`, `MAYORIGUAL`, `MENOR`, `MENORIGUAL`, `AND`, `OR`, `NOT`
@@ -25,9 +25,9 @@ Los terminales principales del lenguaje son:
 
 ```bnf
 <declaraciones_programa> ::= <declaraciones_programa> <struct_def>
-                           | <declaraciones_programa> <struct_method_def>
-                           | <declaraciones_programa> <function_def>
-                           | epsilon
+                            | <declaraciones_programa> <struct_method_def>
+                            | <declaraciones_programa> <function_def>
+                            | epsilon
 ```
 
 ## Bloques e instrucciones
@@ -43,19 +43,19 @@ Los terminales principales del lenguaje son:
                   | <instruccion>
 
 <instruccion> ::= <declaracion_var>
-               | <asignacion>
-               | <llamada>
-               | <identificador> "++"
-               | <identificador> "--"
-               | <sentencia_if>
-               | <sentencia_for>
-               | <sentencia_switch>
-               | <sentencia_break>
-               | <sentencia_continue>
-               | <bloque>
-               | <return_stmt>
-               | error <fin_de_linea>
-               | error ";"
+                | <asignacion>
+                | <llamada>
+                | <identificador> "++"
+                | <identificador> "--"
+                | <sentencia_if>
+                | <sentencia_for>
+                | <sentencia_switch>
+                | <sentencia_break>
+                | <sentencia_continue>
+                | <bloque>
+                | <return_stmt>
+                | error <fin_de_linea>
+                | error ";"
 ```
 
 ## Declaracion de variables
@@ -66,23 +66,26 @@ Los terminales principales del lenguaje son:
                     | <identificador> <identificador> "=" <expresion>
                     | <identificador> <identificador> "=" "{" <lista_campos_init> "}"
                     | <identificador> ":=" <expresion>
+                    | "var" <identificador> <tipo> "=" <expresion>
+                    | "var" <identificador> <tipo>
+                    | "var" <identificador> "=" <expresion>
 ```
 
 ## Asignaciones
 
 ```bnf
 <asignacion> ::= <acceso> "=" <expresion>
-              | <acceso> "+=" <expresion>
-              | <acceso> "-=" <expresion>
+               | <acceso> "+=" <expresion>
+               | <acceso> "-=" <expresion>
 ```
 
 ## Llamadas
 
 ```bnf
 <llamada> ::= <identificador> "(" <lista_expresiones> ")"
-           | <identificador> "(" ")"
-           | <llamada_funcion>
-           | <struct_method_call>
+            | <identificador> "(" ")"
+            | <llamada_funcion>
+            | <struct_method_call>
 ```
 
 ## Sentencias de control
@@ -158,7 +161,6 @@ Los terminales principales del lenguaje son:
              | "len" "(" <expresion> ")"
              | <struct_access>
              | <struct_method_call>
-             | <new_struct>
              | "append" "(" <expresion> "," <lista_expresiones> ")"
              | "[" "]" <tipo> "{" <lista_expresiones> "}"
              | "[" "]" <identificador> "{" <lista_expresiones> "}"
@@ -172,7 +174,7 @@ Los terminales principales del lenguaje son:
 
 ```bnf
 <acceso> ::= <identificador>
-          | <acceso> "[" <expresion> "]"
+           | <acceso> "[" <expresion> "]"
 ```
 
 ## Literales compuestos
@@ -187,6 +189,7 @@ Los terminales principales del lenguaje son:
 <campo_init> ::= <identificador> ":" <expresion>
 
 <filas_2d> ::= <filas_2d> "," <fila_2d>
+            | <filas_2d> ","
             | <fila_2d>
 
 <fila_2d> ::= "{" <lista_expresiones> "}"
@@ -198,9 +201,9 @@ Los terminales principales del lenguaje son:
 <struct_def> ::= "struct" <identificador> "{" <campos> "}"
 
 <campos> ::= <campos> <campo>
-         | <campos> <fin_de_linea>
-         | <campos> ";"
-         | <campo>
+          | <campos> <fin_de_linea>
+          | <campos> ";"
+          | <campo>
 
 <campo> ::= <tipo> <identificador>
          | <identificador> <identificador>
@@ -233,6 +236,18 @@ Los terminales principales del lenguaje son:
                 | epsilon
 ```
 
+## Llamadas a funciones de biblioteca
+
+```bnf
+<llamada_funcion> ::= "fmt" "." "Println" "(" <lista_expresiones> ")"
+                    | "fmt" "." "Println" "(" ")"
+                    | "strconv" "." "Atoi" "(" <expresion> ")"
+                    | "strconv" "." "ParseFloat" "(" <expresion> ")"
+                    | "reflect" "." "TypeOf" "(" <expresion> ")"
+                    | "slices" "." "Index" "(" <expresion> "," <expresion> ")"
+                    | "strings" "." "Join" "(" <expresion> "," <expresion> ")"
+```
+
 ## Listas auxiliares
 
 ```bnf
@@ -244,3 +259,7 @@ Los terminales principales del lenguaje son:
 
 - La gramatica real contiene acciones semanticas de CUP para construir el AST.
 - Las reglas con `error` representan recuperacion de errores sintacticos.
+- Los tipos internos de struct se representan con el prefijo `STRUCT_` (ej. `STRUCT_PERSONA`).
+- Los tipos internos de slice se representan con el prefijo `SLICE_` (ej. `SLICE_INT`).
+- La palabra reservada `var` permite declaraciones con tipo explicito o inferido.
+- La precedencia de operadores sigue el orden estandar: unarios (`-`, `!`) > multiplicativos (`*`, `/`, `%`) > aditivos (`+`, `-`) > relacionales (`<`, `>`, `<=`, `>=`) > igualdad (`==`, `!=`) > `&&` > `||`.
