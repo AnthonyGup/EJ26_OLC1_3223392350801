@@ -84,6 +84,7 @@ newline    = [\n]
 <YYINITIAL> "if"          { return token(sym.IF, yytext(), "if", yyline, yycolumn); }
 <YYINITIAL> "else"        { return token(sym.ELSE, yytext(), "else", yyline, yycolumn); }
 <YYINITIAL> "for"         { return token(sym.FOR, yytext(), "for", yyline, yycolumn); }
+<YYINITIAL> "var"         { return token(sym.VAR, yytext(), "var", yyline, yycolumn); }
 <YYINITIAL> "break"       { return token(sym.BREAK, yytext(), "break", yyline, yycolumn); }
 <YYINITIAL> "continue"    { return token(sym.CONTINUE, yytext(), "continue", yyline, yycolumn); }
 <YYINITIAL> "switch"      { return token(sym.SWITCH, yytext(), "switch", yyline, yycolumn); }

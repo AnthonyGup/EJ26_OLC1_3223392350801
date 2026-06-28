@@ -52,6 +52,7 @@ action code
 // ========== TERMINALES ==========
 
 terminal String CADENA, ENTERO, DECIMAL, IDENTIFICADOR, CHAR;
+terminal VAR;
 terminal FUNC, MAIN, IF, ELSE, FOR, BREAK, CONTINUE, RETURN;
 terminal SWITCH, CASE, DEFAULT, DOSPUNTOS;
 terminal TRUE, FALSE, NIL;
@@ -114,8 +115,9 @@ nonterminal String TIPO_OPCIONAL;
 
 // ========== PRECEDENCIA ==========
 
+precedence left LLAVE1;
 precedence left SIMPLE;
-precedence left CORCHETE1, PAR1, LLAVE1;
+precedence left CORCHETE1, PAR1;
 precedence left OR;
 precedence left AND;
 precedence left IGUALIGUAL, DIFERENTE;
@@ -290,6 +292,12 @@ DECLARACION_VAR ::= TIPO:t IDENTIFICADOR:id IGUAL EXPRESION:e
                       RESULT = new DeclaracionVar((String)id, "STRUCT_" + structName, ns, idleft, idright);
                     :}
                   | IDENTIFICADOR:id DOSPUNTOSIGUAL EXPRESION:e
+                    {: RESULT = new DeclaracionVar((String)id, e, idleft, idright); :}
+                  | VAR IDENTIFICADOR:id TIPO:t IGUAL EXPRESION:e
+                    {: RESULT = new DeclaracionVar((String)id, (String)t, e, idleft, idright); :}
+                  | VAR IDENTIFICADOR:id TIPO:t
+                    {: RESULT = new DeclaracionVar((String)id, (String)t, idleft, idright); :}
+                  | VAR IDENTIFICADOR:id IGUAL EXPRESION:e
                     {: RESULT = new DeclaracionVar((String)id, e, idleft, idright); :}
 ;
 
@@ -475,8 +483,6 @@ EXPRESION ::= EXPRESION:izq OR EXPRESION:der
               {: RESULT = sa; :}
             | STRUCT_METHOD_CALL:smc
               {: RESULT = smc; :}
-            | NEW_STRUCT:ns
-              {: RESULT = ns; :}
             | APPEND:ak PAR1 EXPRESION:s COMA LISTA_EXPRESIONES:elems PAR2
               {: RESULT = new Append(s, (List<NodoAST>)elems, akleft, akright); :}
             | CORCHETE1 CORCHETE2 TIPO:t LLAVE1 LISTA_EXPRESIONES:elems LLAVE2
@@ -561,7 +567,7 @@ CAMPO ::= TIPO:t IDENTIFICADOR:id
 ;
 
 ACCESO ::= IDENTIFICADOR:id
-           {: RESULT = new Identificador((String)id, idleft, idright); :}
+           {: RESULT = new Identificador((String)id, idleft, idright); :} %prec SIMPLE
          | ACCESO:base CORCHETE1 EXPRESION:idx CORCHETE2
            {: RESULT = new IndexAccess(base, idx, baseleft, baseright); :}
 ;
